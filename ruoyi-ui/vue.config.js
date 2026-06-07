@@ -9,7 +9,7 @@ const CompressionPlugin = require('compression-webpack-plugin')
 
 const name = process.env.VUE_APP_TITLE || 'RuoYi-Flowable-Plus后台管理系统' // 网页标题
 
-const port = process.env.port || process.env.npm_config_port || 80 // 端口
+const port = process.env.port || process.env.npm_config_port || 8081 // 端口
 
 // vue.config.js 配置说明
 //官方vue.config.js 参考文档 https://cli.vuejs.org/zh/config/#css-loaderoptions
@@ -58,7 +58,7 @@ module.exports = {
         '@': resolve('src')
       }
     },
-    plugins: [
+    plugins: process.env.NODE_ENV === 'production' ? [
       // http://doc.ruoyi.vip/ruoyi-vue/other/faq.html#使用gzip解压缩静态文件
       new CompressionPlugin({
         cache: false,                   // 不启用文件缓存
@@ -67,7 +67,7 @@ module.exports = {
         algorithm: 'gzip',              // 使用gzip压缩
         minRatio: 0.8                   // 压缩率小于1才会压缩
       })
-    ],
+    ] : [],
   },
   chainWebpack(config) {
     config.plugins.delete('preload') // TODO: need test

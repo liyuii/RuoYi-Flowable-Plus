@@ -292,6 +292,12 @@
             <!-- 定时任务 -->
             <dependency>
                 <groupId>com.ruoyi</groupId>
+                <artifactId>ruoyi-lims</artifactId>
+                <version>${ruoyi-flowable-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.ruoyi</groupId>
                 <artifactId>ruoyi-job</artifactId>
                 <version>${ruoyi-flowable-plus.version}</version>
             </dependency>
@@ -364,6 +370,7 @@
         <module>ruoyi-framework</module>
         <module>ruoyi-generator</module>
         <module>ruoyi-job</module>
+        <module>ruoyi-lims</module>
         <module>ruoyi-oss</module>
         <module>ruoyi-sms</module>
         <module>ruoyi-system</module>

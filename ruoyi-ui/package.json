@@ -5,8 +5,8 @@
   "author": "KonBAI",
   "license": "MIT",
   "scripts": {
-    "dev": "vue-cli-service serve",
-    "build:prod": "vue-cli-service build",
+    "dev": "node --openssl-legacy-provider ./node_modules/@vue/cli-service/bin/vue-cli-service.js serve",
+    "build:prod": "node --openssl-legacy-provider ./node_modules/@vue/cli-service/bin/vue-cli-service.js build",
     "preview": "node build/index.js --preview",
     "lint": "eslint --ext .js,.vue src"
   },
