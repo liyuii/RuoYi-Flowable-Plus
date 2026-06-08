@@ -144,7 +144,7 @@ public class WfTaskServiceImpl extends FlowServiceFactory implements IWfTaskServ
             .processInstanceId(task.getProcessInstanceId())
             .moveExecutionsToSingleActivityId(executionIds, endEvent.getId())
             .changeState();
-        // 处理抄送用户
+        // 处理抄送用户；
         if (!copyService.makeCopy(taskBo)) {
             throw new RuntimeException("抄送任务失败");
         }
