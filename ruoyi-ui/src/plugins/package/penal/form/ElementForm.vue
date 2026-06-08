@@ -1,10 +1,16 @@
 <template>
   <div class="panel-tab__content">
     <el-form size="mini" label-width="90px" @submit.native.prevent>
-      <el-form-item label="表单" prop="formKey">
-        <el-select v-model="formKey" placeholder="请选择表单" @change="updateElementFormKey" clearable>
-          <el-option v-for="item in formOptions" :key="item.formId" :label="item.formName" :value="`key_${item.formId}`" />
-        </el-select>
+<!--      <el-form-item label="表单" prop="formKey">-->
+<!--        <el-select v-model="formKey" placeholder="请选择表单" @change="updateElementFormKey" clearable>-->
+<!--          <el-option v-for="item in formOptions" :key="item.formId" :label="item.formName" :value="`key_${item.formId}`" />-->
+<!--        </el-select>-->
+<!--      </el-form-item>-->
+      <el-form-item label="自定义URL" prop="formKey">
+        <el-input v-model="formKey" placeholder="例: /lims/assay/input?taskId={taskId}&amp;businessKey={businessKey}" @change="updateElementFormKey" clearable />
+        <span style="color:#999;font-size:12px;line-height:1.4;margin-top:4px;display:block;">
+      支持变量: {taskId}, {businessKey}, {processInstanceId}，待办页面自动替换后跳转
+    </span>
       </el-form-item>
       <el-form-item prop="localScope">
         <span slot="label">
@@ -162,7 +168,7 @@
 </template>
 
 <script>
-import { listForm } from "@/api/workflow/form";
+// import { listForm } from "@/api/workflow/form";
 
 export default {
   name: "ElementForm",
@@ -176,7 +182,7 @@ export default {
   },
   data() {
     return {
-      formOptions: [],
+      // formOptions: [],
       formKey: "",
       localScope: false,
       businessKey: "",
@@ -212,7 +218,7 @@ export default {
   },
   created() {
     /** 查询流程分类列表 */
-    this.getFormList();
+    // this.getFormList();
   },
   methods: {
     /** 查询表单列表 */

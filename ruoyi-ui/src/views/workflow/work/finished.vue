@@ -88,6 +88,7 @@
 
 <script>
 import { listFinishedProcess } from '@/api/workflow/process';
+import { getTaskFormKey } from '@/api/workflow/task';
 import { revokeProcess } from "@/api/workflow/finished";
 
 export default {

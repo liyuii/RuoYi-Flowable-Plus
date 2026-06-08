@@ -84,6 +84,7 @@
 
 <script>
 import { listTodoProcess } from '@/api/workflow/process';
+import { getTaskFormKey } from '@/api/workflow/task';
 
 export default {
   name: "Todo",
@@ -140,11 +141,18 @@ export default {
     },
     // 跳转到处理页面
     handleProcess(row) {
-      this.$router.push({
-        path: '/workflow/process/detail/' + row.procInsId,
-        query: {
-          taskId: row.taskId,
-          processed: true
+      getTaskFormKey(row.taskId).then(formKey => {
+        if (formKey && !formKey.startsWith('key_')) {
+          let url = formKey
+            .replace(/{taskId}/g, row.taskId || '')
+            .replace(/{businessKey}/g, row.businessKey || '')
+            .replace(/{processInstanceId}/g, row.procInsId || '');
+          window.open(url, '_self');
+        } else {
+          this.$router.push({
+            path: '/workflow/process/detail/' + row.procInsId,
+            query: { taskId: row.taskId, processed: true }
+          })
         }
       })
     },

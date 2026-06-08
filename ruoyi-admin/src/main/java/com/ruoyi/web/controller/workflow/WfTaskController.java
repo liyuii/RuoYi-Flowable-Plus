@@ -4,6 +4,7 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.hutool.core.util.ObjectUtil;
 import com.ruoyi.common.core.domain.R;
 import com.ruoyi.workflow.domain.bo.WfTaskBo;
+import com.ruoyi.flowable.factory.FlowServiceFactory;
 import com.ruoyi.workflow.service.IWfTaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ import java.io.OutputStream;
 public class WfTaskController {
 
     private final IWfTaskService flowTaskService;
+    private final FlowServiceFactory flowServiceFactory;
 
     /**
      * 取消流程
@@ -185,5 +187,19 @@ public class WfTaskController {
                 e.printStackTrace();
             }
         }
+    }
+    @GetMapping("/formKey/{taskId}")
+    public R<String> getFormKey(@PathVariable String taskId) {
+        // 先查运行时表（待办任务）
+        org.flowable.task.api.Task task = flowServiceFactory.getTaskService()
+            .createTaskQuery().taskId(taskId).singleResult();
+        if (task != null && task.getFormKey() != null) {
+            return R.ok(task.getFormKey());
+        }
+        // 查不到则查历史表（已办任务）
+        org.flowable.task.api.history.HistoricTaskInstance histTask =
+            flowServiceFactory.getHistoryService().createHistoricTaskInstanceQuery()
+                .taskId(taskId).singleResult();
+        return R.ok(histTask != null ? histTask.getFormKey() : null);
     }
 }

@@ -62,3 +62,8 @@ export function returnList(data) {
     data: data
   })
 }
+
+// 获取任务表单Key
+export function getTaskFormKey(taskId) {
+  return request({ url: '/workflow/task/formKey/' + taskId, method: 'get' })
+}
