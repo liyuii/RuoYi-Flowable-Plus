@@ -47,6 +47,7 @@
       <el-table-column label="任务编号" align="center" prop="taskId" :show-overflow-tooltip="true"/>
       <el-table-column label="流程名称" align="center" prop="procDefName"/>
       <el-table-column label="任务节点" align="center" prop="taskName"/>
+      <el-table-column label="检测项目" align="center" :formatter="formatItemName"/>
       <el-table-column label="流程版本" align="center">
         <template slot-scope="scope">
           <el-tag size="medium" >v{{scope.row.procDefVersion}}</el-tag>
@@ -142,6 +143,15 @@ export default {
     // 跳转到处理页面
     handleProcess(row) {
       this.$router.push({ path: '/lims/assay/detail_audit', query: { taskId: row.taskId, businessKey: row.businessKey } });
+    },
+    formatItemName(row) {
+      const vars = row.procVars
+      console.log('111');
+      console.log(vars);
+      if (vars && vars.testItem) {
+        return vars.testItem.itemName || '—'
+      }
+      return '—'
     },
     // 取消按钮
     cancel() {

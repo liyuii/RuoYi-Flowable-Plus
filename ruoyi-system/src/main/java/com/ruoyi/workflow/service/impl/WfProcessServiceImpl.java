@@ -259,6 +259,7 @@ public class WfProcessServiceImpl extends FlowServiceFactory implements IWfProce
         TaskQuery taskQuery = taskService.createTaskQuery()
             .active()
             .includeProcessVariables()
+            .includeTaskLocalVariables()
             .taskCandidateOrAssigned(TaskUtils.getUserId())
             .taskCandidateGroupIn(TaskUtils.getCandidateGroup())
             .orderByTaskCreateTime().desc();
@@ -297,6 +298,11 @@ public class WfProcessServiceImpl extends FlowServiceFactory implements IWfProce
 
             // 流程变量
             flowTask.setProcVars(task.getProcessVariables());
+            Map<String, Object> taskVars = task.getTaskLocalVariables();
+            if (taskVars == null || taskVars.isEmpty()) {
+                taskVars = runtimeService.getVariablesLocal(task.getExecutionId());
+            }
+            flowTask.setTaskLocalVars(taskVars);
 
             flowList.add(flowTask);
         }

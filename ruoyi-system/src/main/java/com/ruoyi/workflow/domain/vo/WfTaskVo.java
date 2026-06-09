@@ -27,6 +27,9 @@ public class WfTaskVo implements Serializable {
      * 任务名称
      */
     private String taskName;
+
+    private String itemName;
+
     /**
      * 任务Key
      */
@@ -96,7 +99,7 @@ public class WfTaskVo implements Serializable {
     /**
      * 历史流程实例ID
      */
-    
+
     /** 业务键（流程启动时传入的业务主键） */
     private String businessKey;
     /**
