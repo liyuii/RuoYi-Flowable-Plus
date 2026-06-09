@@ -195,6 +195,20 @@ export const dynamicRoutes = [
       }
     ]
   },
+  {
+    path: '/lims/assay',
+    component: Layout,
+    hidden: true,
+    permissions: ['workflow:process:query'],
+    children: [
+      {
+        path: 'detail_audit',
+        component: () => import('@/views/lims/assay/detail_audit'),
+        name: 'AssayDetailAudit',
+        meta: { title: '报检审批', activeMenu: '/lims/inspection' }
+      }
+    ]
+  },
 ]
 
 // 防止连续点击多次路由报错
