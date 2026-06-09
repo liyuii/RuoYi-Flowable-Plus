@@ -293,6 +293,7 @@ public class WfProcessServiceImpl extends FlowServiceFactory implements IWfProce
             String nickName = userService.selectNickNameById(userId);
             flowTask.setStartUserId(userId);
             flowTask.setStartUserName(nickName);
+            flowTask.setBusinessKey(historicProcessInstance.getBusinessKey());
 
             // 流程变量
             flowTask.setProcVars(task.getProcessVariables());

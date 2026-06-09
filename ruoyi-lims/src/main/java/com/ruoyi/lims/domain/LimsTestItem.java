@@ -2,6 +2,7 @@ package com.ruoyi.lims.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -42,6 +43,9 @@ public class LimsTestItem implements Serializable {
     private String testGroupName;
 
     private String assignee;
+
+    @TableField(exist = false)
+    private String groupMemberIds;
 
     private Date detectTime;
 

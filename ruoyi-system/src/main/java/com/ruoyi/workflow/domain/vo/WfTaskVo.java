@@ -96,6 +96,12 @@ public class WfTaskVo implements Serializable {
     /**
      * 历史流程实例ID
      */
+    
+    /** 业务键（流程启动时传入的业务主键） */
+    private String businessKey;
+    /**
+     * 历史流程实例ID
+     */
     private String hisProcInsId;
     /**
      * 任务耗时

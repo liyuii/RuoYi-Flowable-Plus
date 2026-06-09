@@ -22,3 +22,13 @@ export function listTestItem(query) {
 export function updateTestItem(data) {
   return request({ url: '/lims/testItem', method: 'put', data: data })
 }
+
+// 获取当前任务的检测项目（多实例）
+export function getTestItemByTask(taskId) {
+  return request({ url: '/lims/testItem/getByTask/' + taskId, method: 'get' })
+}
+
+// 提交报检并启动流程
+export function submitInspection(data) {
+  return request({ url: '/lims/inspection/submit', method: 'post', data: data })
+}

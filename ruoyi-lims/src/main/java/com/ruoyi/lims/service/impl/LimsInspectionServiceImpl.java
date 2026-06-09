@@ -5,7 +5,12 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.ruoyi.common.core.domain.PageQuery;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.lims.domain.LimsInspection;
+import com.ruoyi.flowable.factory.FlowServiceFactory;
+import com.ruoyi.lims.domain.LimsSpecItem;
+import com.ruoyi.lims.domain.LimsTestItem;
 import com.ruoyi.lims.mapper.LimsInspectionMapper;
+import com.ruoyi.lims.mapper.LimsSpecItemMapper;
+import com.ruoyi.lims.mapper.LimsTestItemMapper;
 import com.ruoyi.lims.service.ILimsInspectionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,6 +21,9 @@ import java.util.List;
 @Service
 public class LimsInspectionServiceImpl implements ILimsInspectionService {
     private final LimsInspectionMapper baseMapper;
+    private final LimsSpecItemMapper specItemMapper;
+    private final LimsTestItemMapper testItemMapper;
+    private final FlowServiceFactory flowServiceFactory;
     @Override
     public TableDataInfo<LimsInspection> queryPageList(LimsInspection bo, PageQuery pageQuery) {
         Page<LimsInspection> page = baseMapper.selectPage(pageQuery.build(), buildQueryWrapper(bo));

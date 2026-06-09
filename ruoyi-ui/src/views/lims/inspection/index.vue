@@ -80,7 +80,7 @@
 </template>
 
 <script>
-import { listInspection, getInspection, addInspection, delInspection } from '@/api/lims/inspection'
+import { listInspection, getInspection, addInspection, delInspection, submitInspection } from '@/api/lims/inspection'
 import { listSpecification } from '@/api/lims/specification'
 import { listSpecItem } from '@/api/lims/specification'
 
@@ -106,7 +106,19 @@ export default {
     handleDetail(row) { this.$router.push('/lims/inspection/detail/' + (row.id || row.id)) },
     handleAdd() { this.dialogVisible = true; this.form.specId = null; this.form.batchNo = null; this.form.sampleDate = null; this.form.samplePlace = null; this.form.remark = null; this.previewItems = []; listSpecification({ pageSize: 999 }).then(res => { this.specOptions = res.rows }) },
     onSpecChange(specId) { this.previewItems = []; if (specId) listSpecItem({ specId, pageSize: 999 }).then(res => { this.previewItems = res.rows }) },
-    handleDelete(row) { const ids = row.id || this.getIds(this.inspectionList); this.$modal.confirm('确认删除？').then(() => delInspection(ids)).then(() => { this.getList(); this.$modal.msgSuccess('删除成功') }) }
+    handleDelete(row) { const ids = row.id || this.getIds(this.inspectionList); this.$modal.confirm('确认删除？').then(() => delInspection(ids)).then(() => { this.getList(); this.$modal.msgSuccess('删除成功') }) },
+    /* 提交报检单 */
+    submitForm() {
+      this.$refs.formRef.validate(valid => {
+        if (valid) {
+          submitInspection(this.form).then(() => {
+            this.$modal.msgSuccess("提交成功")
+            this.dialogVisible = false
+            this.getList()
+          })
+        }
+      })
+    }
 }
 }
 </script>

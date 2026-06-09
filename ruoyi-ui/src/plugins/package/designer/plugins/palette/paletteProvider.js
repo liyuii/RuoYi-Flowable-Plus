@@ -135,7 +135,9 @@ PaletteProvider.prototype.getPaletteEntries = function() {
     "create.user-task": createAction("bpmn:UserTask", "activity", "bpmn-icon-user-task", translate("Create User Task")),
     "create.data-object": createAction("bpmn:DataObjectReference", "data-object", "bpmn-icon-data-object", translate("Create DataObjectReference")),
     "create.data-store": createAction("bpmn:DataStoreReference", "data-store", "bpmn-icon-data-store", translate("Create DataStoreReference")),
-    "create.subprocess-expanded": {
+        "create.parallel-gateway": createAction("bpmn:ParallelGateway", "gateway", "bpmn-icon-gateway-parallel", "Create ParallelGateway"),
+    "create.service-task": createAction("bpmn:ServiceTask", "activity", "bpmn-icon-service-task", "Create Service Task"),
+    "call-activity": createAction("bpmn:CallActivity", "activity", "bpmn-icon-call-activity", "Create CallActivity"),    "create.subprocess-expanded": {
       group: "activity",
       className: "bpmn-icon-subprocess-expanded",
       title: translate("Create expanded SubProcess"),

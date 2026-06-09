@@ -81,7 +81,10 @@ public class WfDeployFormServiceImpl implements IWfDeployFormService {
             }
         }
         // 批量新增部署流程和表单关联信息
-        return baseMapper.insertBatch(deployFormList);
+                if (CollUtil.isNotEmpty(deployFormList)) {
+            return baseMapper.insertBatch(deployFormList);
+        }
+        return true;
     }
 
     /**
@@ -114,7 +117,7 @@ public class WfDeployFormServiceImpl implements IWfDeployFormService {
      */
     private WfDeployForm buildDeployForm(String deployId, FlowNode node) {
         String formKey = ModelUtils.getFormKey(node);
-        if (StringUtils.isEmpty(formKey)) {
+        if (StringUtils.isEmpty(formKey) || !formKey.startsWith("key_")) {
             return null;
         }
         Long formId = Convert.toLong(StringUtils.substringAfter(formKey, "key_"));
