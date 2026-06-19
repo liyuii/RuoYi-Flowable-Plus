@@ -145,10 +145,10 @@ export default {
       this.$router.push({ path: '/lims/assay/detail_audit', query: { taskId: row.taskId, businessKey: row.businessKey } });
     },
     formatItemName(row) {
-      const vars = row.procVars
-      console.log('111');
+      const vars = row.taskLocalVars
       console.log(vars);
       if (vars && vars.testItem) {
+        console.log(vars.testItem.itemName);
         return vars.testItem.itemName || '—'
       }
       return '—'

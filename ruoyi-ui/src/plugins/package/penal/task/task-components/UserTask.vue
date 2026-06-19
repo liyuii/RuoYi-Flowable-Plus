@@ -7,6 +7,7 @@
         <el-radio label="ROLES">角色</el-radio>
         <el-radio label="DEPTS">部门</el-radio>
         <el-radio label="INITIATOR">发起人</el-radio>
+        <el-radio label="EXPRESSION">表达式</el-radio>
       </el-radio-group>
     </el-row>
     <el-row>
@@ -44,6 +45,9 @@
           @change="checkedDeptChange">
         </tree-select>
       </div>
+    </el-row>
+    <el-row v-if="dataType === 'EXPRESSION'">
+      <el-input v-model="expressionText" placeholder="如 ${testItem.groupMemberIds}" @change="changeExpression" clearable style="width:100%" />
     </el-row>
     <el-row>
       <div v-show="showMultiFlog">
@@ -172,6 +176,7 @@ export default {
       showMultiFlog: false,
       isSequential: false,
       multiLoopType: 'Null',
+      expressionText: '',
     };
   },
   watch: {
@@ -240,7 +245,7 @@ export default {
     updateElementTask() {
       const taskAttr = Object.create(null);
       for (let key in userTaskForm) {
-          taskAttr[key] = userTaskForm[key];
+        taskAttr[key] = userTaskForm[key];
       }
       window.bpmnInstances.modeling.updateProperties(this.bpmnElement, taskAttr);
     },
@@ -450,6 +455,23 @@ export default {
       } else if (val === 'INITIATOR') {
         userTaskForm.assignee = "${initiator}";
         userTaskForm.text = "流程发起人";
+      } else if (val === 'EXPRESSION') {
+        Object.keys(userTaskForm).forEach(key => userTaskForm[key] = null);
+        userTaskForm.dataType = 'EXPRESSION';
+        if (this.expressionText) {
+          userTaskForm.candidateUsers = this.expressionText;
+          userTaskForm.text = this.expressionText;
+        }
+        this.updateElementTask();
+      }
+      this.updateElementTask();
+    },
+    changeExpression() {
+      Object.keys(userTaskForm).forEach(key => userTaskForm[key] = null);
+      userTaskForm.dataType = 'EXPRESSION';
+      if (this.expressionText) {
+        userTaskForm.candidateUsers = this.expressionText;
+        userTaskForm.text = this.expressionText;
       }
       this.updateElementTask();
     },

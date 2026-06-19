@@ -285,6 +285,7 @@ public class WfProcessServiceImpl extends FlowServiceFactory implements IWfProce
             flowTask.setProcDefName(pd.getName());
             flowTask.setProcDefVersion(pd.getVersion());
             flowTask.setProcInsId(task.getProcessInstanceId());
+            flowTask.setFormKey(task.getFormKey());
 
             // 流程发起人信息
             HistoricProcessInstance historicProcessInstance = historyService.createHistoricProcessInstanceQuery()
@@ -300,7 +301,7 @@ public class WfProcessServiceImpl extends FlowServiceFactory implements IWfProce
             flowTask.setProcVars(task.getProcessVariables());
             Map<String, Object> taskVars = task.getTaskLocalVariables();
             if (taskVars == null || taskVars.isEmpty()) {
-                taskVars = runtimeService.getVariablesLocal(task.getExecutionId());
+                taskVars = runtimeService.getVariables(task.getExecutionId());
             }
             flowTask.setTaskLocalVars(taskVars);
 

@@ -209,6 +209,33 @@ export const dynamicRoutes = [
       }
     ]
   },
+  {
+    path: '/lims/contract',
+    component: Layout,
+    hidden: false,
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/lims/contract/index'),
+        name: 'Contract',
+        meta: { title: "合同管理", icon: "el-icon-document" }
+      },
+      {
+        path: 'detail/:id(\\d+)',
+        component: () => import('@/views/lims/contract/detail'),
+        name: 'ContractDetail',
+        meta: { title: "合同详情", activeMenu: '/lims/contract' },
+        hidden: true
+      },
+      {
+        path: 'detail_audit',
+        component: () => import('@/views/lims/contract/detail_audit'),
+        name: 'ContractDetailAudit',
+        meta: { title: "合同审批", activeMenu: '/lims/contract' },
+        hidden: true
+      }
+    ]
+  }
 ]
 
 // 防止连续点击多次路由报错

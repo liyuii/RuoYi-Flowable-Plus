@@ -138,4 +138,9 @@ public class WfTaskVo implements Serializable {
      */
     private String processStatus;
 
+    /**
+     * 审核地址
+     */
+    private String formKey;
+
 }
