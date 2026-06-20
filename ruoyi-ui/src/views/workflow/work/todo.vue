@@ -66,7 +66,6 @@
             type="text"
             icon="el-icon-edit-outline"
             @click="handleProcess(scope.row)"
-            v-hasPermi="['workflow:process:approval']"
           >办理
           </el-button>
         </template>
@@ -142,7 +141,33 @@ export default {
     },
     // 跳转到处理页面
     handleProcess(row) {
-      this.$router.push({ path: '/lims/assay/detail_audit', query: { taskId: row.taskId, businessKey: row.businessKey } });
+      console.log('111');
+      getTaskFormKey(row.taskId).then(res => {
+        console.log(res);
+        const formKey = res?.msg || res || '';
+        console.log(formKey);
+        if (!formKey) {
+          this.$modal.msgWarning('请先配置审核页面');
+          return;
+        }
+         const url = formKey
+            .replace(/{taskId}/g, row.taskId || '')
+            .replace(/{businessKey}/g, row.businessKey || '')
+            .replace(/{processInstanceId}/g, row.procInsId || '');
+          this.$router.push(url);
+        // if (formKey.startsWith('key_')) {
+        //   this.$router.push({
+        //     path: '/workflow/process/detail/' + row.procInsId,
+        //     query: { taskId: row.taskId, processed: true }
+        //   });
+        // } else {
+        //   const url = formKey
+        //     .replace(/{taskId}/g, row.taskId || '')
+        //     .replace(/{businessKey}/g, row.businessKey || '')
+        //     .replace(/{processInstanceId}/g, row.procInsId || '');
+        //   this.$router.push(url);
+        // }
+      });
     },
     formatItemName(row) {
       const vars = row.taskLocalVars

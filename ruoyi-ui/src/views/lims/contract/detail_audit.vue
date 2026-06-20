@@ -36,11 +36,11 @@ export default {
     if (id && taskId) { this.loading = true; this.taskForm.taskId = taskId; getContract(id).then(r => { this.detail = r.data; this.loading = false }) }
   },
   methods: {
-    goBack() { this.$router.push("/lims/contract") },
+    goBack() { this.$router.push("/lims/contract/index") },
     statusTag(s) { return { "0":"info","1":"primary","2":"success","3":"danger" }[s] || "" },
     statusLabel(s) { return { "0":"草稿","1":"审批中","2":"已通过","3":"已驳回" }[s] || "" },
-    handleComplete() { if (!this.taskForm.comment) { this.$modal.msgWarning("请输入审批意见"); return } this.submitting = true; complete({ taskId: this.taskForm.taskId, comment: this.taskForm.comment }).then(r => { this.$modal.msgSuccess(r.msg); this.$router.push("/lims/contract") }).finally(() => { this.submitting = false }) },
-    handleReject() { if (!this.taskForm.comment) { this.$modal.msgWarning("请输入审批意见"); return } this.submitting = true; rejectTask({ taskId: this.taskForm.taskId, comment: this.taskForm.comment }).then(r => { this.$modal.msgSuccess(r.msg); this.$router.push("/lims/contract") }).finally(() => { this.submitting = false }) }
+    handleComplete() { if (!this.taskForm.comment) { this.$modal.msgWarning("请输入审批意见"); return } this.submitting = true; complete({ taskId: this.taskForm.taskId, comment: this.taskForm.comment }).then(r => { this.$modal.msgSuccess(r.msg); this.$router.push("/lims/contract/index") }).finally(() => { this.submitting = false }) },
+    handleReject() { if (!this.taskForm.comment) { this.$modal.msgWarning("请输入审批意见"); return } this.submitting = true; rejectTask({ taskId: this.taskForm.taskId, comment: this.taskForm.comment }).then(r => { this.$modal.msgSuccess(r.msg); this.$router.push("/lims/contract/index") }).finally(() => { this.submitting = false }) }
   }
 }
 </script>

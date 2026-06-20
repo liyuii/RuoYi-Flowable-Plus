@@ -211,8 +211,10 @@ export const dynamicRoutes = [
   },
   {
     path: '/lims/contract',
+    redirect: 'index',
     component: Layout,
     hidden: false,
+    permissions: ['workflow:process:query'],
     children: [
       {
         path: 'index',
