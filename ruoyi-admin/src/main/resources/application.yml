@@ -12,6 +12,8 @@ ruoyi:
   addressEnabled: true
   # 缓存懒加载
   cacheLazy: false
+  # 文件上传路径
+  profile: D:/GitHubItem/RuoYi-Flowable-Plus/upload
 
 captcha:
   # 页面 <参数设置> 可开启关闭 验证码校验
@@ -74,10 +76,10 @@ spring:
   # 文件上传
   servlet:
     multipart:
-      # 单个文件大小
-      max-file-size: 10MB
-      # 设置总上传的文件大小
-      max-request-size: 20MB
+     # 单个文件大小
+      max-file-size: 20MB
+     # 设置总上传的文件大小
+      max-request-size: 40MB
   # 服务模块
   devtools:
     restart:
@@ -105,7 +107,7 @@ sa-token:
   # token有效期 设为一天 (必定过期) 单位: 秒
   timeout: 86400
   # token临时有效期 (指定时间无操作就过期) 单位: 秒
-  activity-timeout: 1800
+  activity-timeout: 86400
   # 是否允许同一账号并发登录 (为true时允许一起登录, 为false时新登录挤掉旧登录)
   is-concurrent: true
   # 在多人登录同一账号时，是否共用一个token (为true时所有登录共用一个token, 为false时每次登录新建一个token)

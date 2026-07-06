@@ -42,6 +42,11 @@ public class RuoYiConfig {
     private boolean cacheLazy;
 
     /**
+     * 上传路径
+     */
+    private String profile;
+
+    /**
      * 获取地址开关
      */
     @Getter

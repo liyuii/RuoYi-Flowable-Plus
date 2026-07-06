@@ -29,8 +29,9 @@ public class ContractApprove extends BaseEntity {
     private Date startDate;
     @JsonFormat(pattern = "yyyy-MM-dd")
     private Date endDate;
-    private String attachmentOss;
-    private String status;
+   private String attachmentOss;
+    private String attachmentBatch;
+   private String status;
     private String remark;
     @TableLogic(value = "0", delval = "2")
     private String delFlag;

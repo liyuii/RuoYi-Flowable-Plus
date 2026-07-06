@@ -35,12 +35,12 @@ public class ContractController extends BaseController {
         return R.ok(contractService.queryById(id));
     }
 
-    @PostMapping
-    public R<Void> add(@Valid @RequestBody ContractApprove bo) {
-        bo.setContractNo("HT" + DateUtil.format(new Date(), "yyyyMMdd") + UUID.randomUUID().toString().substring(0, 4).toUpperCase());
-        bo.setStatus("0");
-        return toAjax(contractService.insert(bo));
-    }
+   @PostMapping
+   public R<Void> add(@Valid @RequestBody ContractApprove bo) {
+       bo.setContractNo("HT" + DateUtil.format(new Date(), "yyyyMMdd") + UUID.randomUUID().toString().substring(0, 4).toUpperCase());
+        bo.setStatus("0"); bo.setDelFlag("0");
+       return toAjax(contractService.insert(bo));
+   }
 
     @PutMapping
     public R<Void> edit(@Valid @RequestBody ContractApprove bo) {
@@ -55,18 +55,19 @@ public class ContractController extends BaseController {
 
     @PostMapping("/submit")
     public R<Void> submit(@RequestBody ContractApprove bo){
-        bo.setStatus("1");
-        LoginUser loginUser = LoginHelper.getLoginUser();
-//        bo.setCreateBy(loginUser.getUserId().toString());
-//        bo.setCreateTime(new Date());
-        contractService.update(bo);
-        //启动流程
         ContractApprove entity = contractService.queryById(bo.getId());
-        Map<String, Object> vars = new HashMap<>();
-        vars.put("amount", entity.getAmount());
+        if (entity == null) {
+            return R.fail("合同不存在");
+        }
+
+        entity.setStatus("1");
+        contractService.update(entity);
+        //设置发起人
+        flowServiceFactory.getIdentityService().setAuthenticatedUserId(LoginHelper.getUserId().toString());
+        //启动流程
         RuntimeService runtimeService = flowServiceFactory.getRuntimeService();
-        runtimeService.startProcessInstanceByKey("Process_1781834760920", "contract_" + bo.getId(),vars);
-        log.info("合同审批流程启动成功，流程实例ID: {}", "contract_" + bo.getId());
+        runtimeService.startProcessInstanceByKey("Process_1781834760920", "contract_" + entity.getId());
+        log.info("合同审批流程启动成功，流程实例ID: {}", "contract_" + entity.getId());
         return R.ok("提交成功");
     }
 

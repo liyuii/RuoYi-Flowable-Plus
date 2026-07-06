@@ -1,6 +1,7 @@
 package com.ruoyi.framework.config;
 
 import com.ruoyi.framework.interceptor.PlusWebInvokeTimeInterceptor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -18,15 +19,21 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class ResourcesConfig implements WebMvcConfigurer {
 
+    @Value("${ruoyi.profile:./upload}")
+    private String profile;
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         // 全局访问性能拦截
         registry.addInterceptor(new PlusWebInvokeTimeInterceptor());
     }
 
-    @Override
-    public void addResourceHandlers(ResourceHandlerRegistry registry) {
-    }
+   @Override
+   public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        /** 本地文件上传路径 */
+        registry.addResourceHandler("/profile/**")
+                .addResourceLocations("file:" + profile + "/");
+   }
 
     /**
      * 跨域配置

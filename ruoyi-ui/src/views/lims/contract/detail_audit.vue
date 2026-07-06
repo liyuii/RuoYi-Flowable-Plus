@@ -11,6 +11,19 @@
         <el-descriptions-item label="甲方">{{ detail.partyA }}</el-descriptions-item><el-descriptions-item label="乙方">{{ detail.partyB }}</el-descriptions-item>
         <el-descriptions-item label="内容" :span="2">{{ detail.content }}</el-descriptions-item>
       </el-descriptions>
+      <h3 style="margin:20px 0 10px;">合同附件</h3>
+      <el-table :data="attachmentList" border v-loading="loadingFile">
+        <el-table-column label="文件名" prop="fileName" />
+        <el-table-column label="文件大小" width="120">
+          <template slot-scope="s">{{ (s.row.fileSize / 1024).toFixed(1) + ' KB' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="200">
+          <template slot-scope="s">
+            <el-button type="text" icon="el-icon-view" @click="handlePreview(s.row)">预览</el-button>
+            <el-button type="text" icon="el-icon-download" @click="handleDownload(s.row)">下载</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
       <el-card style="margin-top:20px;">
         <div slot="header"><span>审批操作</span></div>
         <el-form ref="taskForm" :model="taskForm" label-width="100px">
@@ -26,16 +39,41 @@
 </template>
 <script>
 import { getContract } from "@/api/lims/contract"
+import { listByBatch } from "@/api/lims/sysFile"
 import { complete, rejectTask } from "@/api/workflow/task"
 export default {
   name: "ContractDetailAudit",
-  data() { return { loading: false, submitting: false, detail: {}, taskForm: { comment: "", taskId: "" } } },
+  data() { return { loading: false, submitting: false, loadingFile: false, detail: {}, taskForm: { comment: "", taskId: "" }, attachmentList: [] } },
   created() {
     const taskId = this.$route.query.taskId; const businessKey = this.$route.query.businessKey || ""
     const id = businessKey.replace("contract_", "")
-    if (id && taskId) { this.loading = true; this.taskForm.taskId = taskId; getContract(id).then(r => { this.detail = r.data; this.loading = false }) }
+    if (id && taskId) { 
+      this.loading = true; 
+      this.taskForm.taskId = taskId; 
+      getContract(id).then(r => { 
+        this.detail = r.data; 
+        this.loading = false; 
+        if (r.data.attachmentBatch) {
+           this.loadingFile = true; 
+           listByBatch(r.data.attachmentBatch).then(r2 => { this.attachmentList = r2.data || r2.rows || []; this.loadingFile = false }) 
+          } 
+        }
+      ) 
+    }
   },
   methods: {
+    handlePreview(f) {
+      var fileUrl = btoa('http://127.0.0.1:8080' + f.ossUrl);
+      window.open('http://127.0.0.1:8012/onlinePreview?url=' + fileUrl, '_blank');
+    },
+   handleDownload(f) {
+      const a = document.createElement('a');
+      a.href = '/dev-api' + f.ossUrl;
+      a.download = f.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    },
     goBack() { this.$router.push("/lims/contract/index") },
     statusTag(s) { return { "0":"info","1":"primary","2":"success","3":"danger" }[s] || "" },
     statusLabel(s) { return { "0":"草稿","1":"审批中","2":"已通过","3":"已驳回" }[s] || "" },

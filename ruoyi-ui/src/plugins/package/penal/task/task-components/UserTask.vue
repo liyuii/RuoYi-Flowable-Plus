@@ -46,9 +46,15 @@
         </tree-select>
       </div>
     </el-row>
+   <el-row v-if="dataType === 'EXPRESSION'">
+      <el-radio-group v-model="assignmentType" @change="changeAssignmentType">
+        <el-radio label="assignee">指定单人（assignee）</el-radio>
+        <el-radio label="candidateUsers">指定候选人（可多人）</el-radio>
+      </el-radio-group>
+    </el-row>
     <el-row v-if="dataType === 'EXPRESSION'">
       <el-input v-model="expressionText" placeholder="如 ${testItem.groupMemberIds}" @change="changeExpression" clearable style="width:100%" />
-    </el-row>
+   </el-row>
     <el-row>
       <div v-show="showMultiFlog">
         <el-divider />
@@ -176,9 +182,10 @@ export default {
       showMultiFlog: false,
       isSequential: false,
       multiLoopType: 'Null',
-      expressionText: '',
-    };
-  },
+     expressionText: '',
+      assignmentType: 'candidateUsers',
+   };
+ },
   watch: {
     id: {
       immediate: true,
@@ -226,9 +233,20 @@ export default {
         if (deptIdData && deptIdData.length > 0) {
           this.deptIds = deptIdData.split(',');
         }
-        this.showMultiFlog = true;
+       this.showMultiFlog = true;
+     }
+      if (this.dataType === 'EXPRESSION') {
+        let assigneeVal = bpmnElementObj['assignee'];
+        let candidateVal = bpmnElementObj['candidateUsers'];
+        if (assigneeVal && assigneeVal.startsWith('${')) {
+          this.assignmentType = 'assignee';
+          this.expressionText = assigneeVal;
+        } else if (candidateVal && candidateVal.startsWith('${')) {
+          this.assignmentType = 'candidateUsers';
+          this.expressionText = candidateVal;
+        }
       }
-      this.getElementLoop(bpmnElementObj);
+     this.getElementLoop(bpmnElementObj);
     },
     /**
      * 清空选项数据
@@ -455,27 +473,40 @@ export default {
       } else if (val === 'INITIATOR') {
         userTaskForm.assignee = "${initiator}";
         userTaskForm.text = "流程发起人";
-      } else if (val === 'EXPRESSION') {
-        Object.keys(userTaskForm).forEach(key => userTaskForm[key] = null);
-        userTaskForm.dataType = 'EXPRESSION';
-        if (this.expressionText) {
+     } else if (val === 'EXPRESSION') {
+       Object.keys(userTaskForm).forEach(key => userTaskForm[key] = null);
+       userTaskForm.dataType = 'EXPRESSION';
+       if (this.expressionText) {
+          if (this.assignmentType === 'assignee') {
+            userTaskForm.assignee = this.expressionText;
+          } else {
+            userTaskForm.candidateUsers = this.expressionText;
+          }
+         userTaskForm.text = this.expressionText;
+       }
+       this.updateElementTask();
+     }
+      this.updateElementTask();
+    },
+   changeExpression() {
+     Object.keys(userTaskForm).forEach(key => userTaskForm[key] = null);
+     userTaskForm.dataType = 'EXPRESSION';
+     if (this.expressionText) {
+        if (this.assignmentType === 'assignee') {
+          userTaskForm.assignee = this.expressionText;
+        } else {
           userTaskForm.candidateUsers = this.expressionText;
-          userTaskForm.text = this.expressionText;
         }
-        this.updateElementTask();
-      }
-      this.updateElementTask();
-    },
-    changeExpression() {
-      Object.keys(userTaskForm).forEach(key => userTaskForm[key] = null);
-      userTaskForm.dataType = 'EXPRESSION';
+       userTaskForm.text = this.expressionText;
+     }
+     this.updateElementTask();
+   },
+    changeAssignmentType() {
       if (this.expressionText) {
-        userTaskForm.candidateUsers = this.expressionText;
-        userTaskForm.text = this.expressionText;
+        this.changeExpression();
       }
-      this.updateElementTask();
     },
-    getElementLoop(businessObject) {
+   getElementLoop(businessObject) {
       if (!businessObject.loopCharacteristics) {
         this.multiLoopType = "Null";
         return;

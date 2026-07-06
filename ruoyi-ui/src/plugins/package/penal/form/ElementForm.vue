@@ -12,7 +12,7 @@
       支持变量: {taskId}, {businessKey}, {processInstanceId}，待办页面自动替换后跳转
     </span>
       </el-form-item>
-      <el-form-item prop="localScope">
+      <!-- <el-form-item prop="localScope">
         <span slot="label">
           <el-tooltip content="若为节点表单，则表单信息仅在此节点可用，默认为全局表单，表单信息在整个流程实例中可用" placement="top-start">
             <i class="header-icon el-icon-info"></i>
@@ -20,7 +20,7 @@
           <span>节点表单</span>
         </span>
         <el-switch :disabled="type === 'StartEvent'" v-model="localScope" active-text="是" inactive-text="否" @change="updateElementFormScope()" />
-      </el-form-item>
+      </el-form-item> -->
 <!--      <el-form-item label="表单标识">-->
 <!--        <el-input v-model="formKey" clearable @change="updateElementFormKey" />-->
 <!--      </el-form-item>-->
