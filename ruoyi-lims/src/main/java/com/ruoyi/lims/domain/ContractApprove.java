@@ -2,6 +2,7 @@ package com.ruoyi.lims.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -30,8 +31,10 @@ public class ContractApprove extends BaseEntity {
     @JsonFormat(pattern = "yyyy-MM-dd")
     private Date endDate;
    private String attachmentOss;
-    private String attachmentBatch;
-   private String status;
+private String attachmentBatch;
+    @TableField(exist = false)
+    private String procInstId;
+  private String status;
     private String remark;
     @TableLogic(value = "0", delval = "2")
     private String delFlag;

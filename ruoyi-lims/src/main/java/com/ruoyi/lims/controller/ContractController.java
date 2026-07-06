@@ -7,12 +7,16 @@ import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.core.domain.model.LoginUser;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.helper.LoginHelper;
+import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.flowable.factory.FlowServiceFactory;
 import com.ruoyi.lims.domain.ContractApprove;
 import com.ruoyi.lims.service.IContractApproveService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.flowable.engine.RuntimeService;
+import org.flowable.engine.HistoryService;
+import org.flowable.engine.runtime.ProcessInstance;
+import org.flowable.engine.history.HistoricProcessInstance;
 import org.springframework.web.bind.annotation.*;
 import javax.validation.Valid;
 import java.util.*;
@@ -25,10 +29,22 @@ public class ContractController extends BaseController {
     private final IContractApproveService contractService;
     private final FlowServiceFactory flowServiceFactory;
 
-    @GetMapping("/list")
-    public TableDataInfo<ContractApprove> list(ContractApprove bo, PageQuery pageQuery) {
-        return contractService.queryPageList(bo, pageQuery);
-    }
+   @GetMapping("/list")
+   public TableDataInfo<ContractApprove> list(ContractApprove bo, PageQuery pageQuery) {
+        TableDataInfo<ContractApprove> page = contractService.queryPageList(bo, pageQuery);
+        HistoryService historyService = flowServiceFactory.getHistoryService();
+        for (ContractApprove contract : page.getRows()) {
+            if (StringUtils.isNotBlank(contract.getStatus()) && !"0".equals(contract.getStatus())) {
+                HistoricProcessInstance hpi = historyService.createHistoricProcessInstanceQuery()
+                    .processInstanceBusinessKey("contract_" + contract.getId())
+                    .singleResult();
+                if (hpi != null) {
+                    contract.setProcInstId(hpi.getId());
+                }
+            }
+        }
+        return page;
+   }
 
     @GetMapping("/{id}")
     public R<ContractApprove> getInfo(@PathVariable Long id) {

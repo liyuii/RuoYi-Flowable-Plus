@@ -39,6 +39,7 @@ import org.flowable.image.ProcessDiagramGenerator;
 import org.flowable.task.api.DelegationState;
 import org.flowable.task.api.Task;
 import org.flowable.task.api.history.HistoricTaskInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +59,7 @@ public class WfTaskServiceImpl extends FlowServiceFactory implements IWfTaskServ
     private final UserService sysUserService;
 
     private final IWfCopyService copyService;
+
 
     /**
      * 完成任务
@@ -124,6 +126,8 @@ public class WfTaskServiceImpl extends FlowServiceFactory implements IWfTaskServ
         if (processInstance == null) {
             throw new RuntimeException("流程实例不存在，请确认！");
         }
+        //状态改为驳回
+        runtimeService.setVariable(processInstance.getId(),"status","3");
         // 获取流程定义信息
         ProcessDefinition processDefinition = repositoryService.createProcessDefinitionQuery()
             .processDefinitionId(task.getProcessDefinitionId())

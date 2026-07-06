@@ -68,10 +68,20 @@
             @click="handleProcess(scope.row)"
           >办理
           </el-button>
+          <el-button
+            size="mini"
+            type="text"
+            icon="el-icon-s-operation"
+            @click="handleProcessInfo(scope.row)"
+          >流程详情
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
 
+    <el-dialog title="流程详情" :visible.sync="processInfoVisible" width="65%" append-to-body top="30px">
+      <ProcessInfo :procInsId="selectedProcInsId" v-if="processInfoVisible" />
+    </el-dialog>
     <pagination
       v-show="total>0"
       :total="total"
@@ -85,10 +95,11 @@
 <script>
 import { listTodoProcess } from '@/api/workflow/process';
 import { getTaskFormKey } from '@/api/workflow/task';
+import ProcessInfo from '@/components/ProcessInfo';
 
 export default {
   name: "Todo",
-  components: {},
+  components: { ProcessInfo },
   data() {
     return {
       // 遮罩层
@@ -105,6 +116,8 @@ export default {
       total: 0,
       // 流程待办任务表格数据
       todoList: [],
+      processInfoVisible: false,
+      selectedProcInsId: '',
       // 弹出层标题
       title: "",
       // 是否显示弹出层
@@ -153,7 +166,8 @@ export default {
          const url = formKey
             .replace(/{taskId}/g, row.taskId || '')
             .replace(/{businessKey}/g, row.businessKey || '')
-            .replace(/{processInstanceId}/g, row.procInsId || '');
+            .replace(/{processInstanceId}/g, row.procInsId || '')
+            .replace(/\${procInsId}/g, row.procInsId || '');
           this.$router.push(url);
         // if (formKey.startsWith('key_')) {
         //   this.$router.push({
@@ -168,6 +182,10 @@ export default {
         //   this.$router.push(url);
         // }
       });
+    },
+    handleProcessInfo(row) {
+      this.selectedProcInsId = row.procInsId;
+      this.processInfoVisible = true;
     },
     formatItemName(row) {
       const vars = row.taskLocalVars

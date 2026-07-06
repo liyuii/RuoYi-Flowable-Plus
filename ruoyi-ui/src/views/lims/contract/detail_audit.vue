@@ -43,13 +43,13 @@ import { listByBatch } from "@/api/lims/sysFile"
 import { complete, rejectTask } from "@/api/workflow/task"
 export default {
   name: "ContractDetailAudit",
-  data() { return { loading: false, submitting: false, loadingFile: false, detail: {}, taskForm: { comment: "", taskId: "" }, attachmentList: [] } },
+  data() { return { loading: false, submitting: false, loadingFile: false, detail: {}, taskForm: { comment: "", taskId: "", procInsId: "" }, attachmentList: [] } },
   created() {
     const taskId = this.$route.query.taskId; const businessKey = this.$route.query.businessKey || ""
     const id = businessKey.replace("contract_", "")
     if (id && taskId) { 
       this.loading = true; 
-      this.taskForm.taskId = taskId; 
+      this.taskForm.taskId = taskId; this.taskForm.procInsId = this.$route.query.procInsId || ""; 
       getContract(id).then(r => { 
         this.detail = r.data; 
         this.loading = false; 
@@ -74,11 +74,11 @@ export default {
       a.click();
       document.body.removeChild(a);
     },
-    goBack() { this.$router.push("/lims/contract/index") },
-    statusTag(s) { return { "0":"info","1":"primary","2":"success","3":"danger" }[s] || "" },
-    statusLabel(s) { return { "0":"草稿","1":"审批中","2":"已通过","3":"已驳回" }[s] || "" },
-    handleComplete() { if (!this.taskForm.comment) { this.$modal.msgWarning("请输入审批意见"); return } this.submitting = true; complete({ taskId: this.taskForm.taskId, comment: this.taskForm.comment }).then(r => { this.$modal.msgSuccess(r.msg); this.$router.push("/lims/contract/index") }).finally(() => { this.submitting = false }) },
-    handleReject() { if (!this.taskForm.comment) { this.$modal.msgWarning("请输入审批意见"); return } this.submitting = true; rejectTask({ taskId: this.taskForm.taskId, comment: this.taskForm.comment }).then(r => { this.$modal.msgSuccess(r.msg); this.$router.push("/lims/contract/index") }).finally(() => { this.submitting = false }) }
+    goBack() { this.$router.back() },
+    statusTag(s) { return { "0":"info","1":"primary","9":"success","3":"danger" }[s] || "" },
+    statusLabel(s) { return { "0":"草稿","1":"审批中","9":"已通过","3":"已驳回" }[s] || "" },
+    handleComplete() { if (!this.taskForm.comment) { this.$modal.msgWarning("请输入审批意见"); return } this.submitting = true; complete({ taskId: this.taskForm.taskId, procInsId: this.taskForm.procInsId, comment: this.taskForm.comment }).then(r => { this.$modal.msgSuccess(r.msg); this.$router.back() }).finally(() => { this.submitting = false }) },
+    handleReject() { if (!this.taskForm.comment) { this.$modal.msgWarning("请输入审批意见"); return } this.submitting = true; rejectTask({ taskId: this.taskForm.taskId, procInsId: this.taskForm.procInsId, comment: this.taskForm.comment }).then(r => { this.$modal.msgSuccess(r.msg); this.$router.back() }).finally(() => { this.submitting = false }) }
   }
 }
 </script>

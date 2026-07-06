@@ -66,8 +66,8 @@ export default {
       document.body.removeChild(a);
     },
  goBack() { this.$router.push("/lims/contract") },
-    statusTag(s) { return { "0":"info","1":"primary","2":"success","3":"danger","4":"warning" }[s] || "" },
-    statusLabel(s) { return { "0":"草稿","1":"审批中","2":"已通过","3":"已驳回","4":"已过期" }[s] || "" }
+    statusTag(s) { return { "0":"info","1":"primary","9":"success","3":"danger","4":"warning" }[s] || "" },
+    statusLabel(s) { return { "0":"草稿","1":"审批中","9":"已通过","3":"已驳回","4":"已过期" }[s] || "" }
   }
 }
 </script>

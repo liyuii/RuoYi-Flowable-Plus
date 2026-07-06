@@ -28,8 +28,9 @@
       <el-table-column label="创建时间" prop="createTime" width="170" />
       <el-table-column label="操作" width="200" fixed="right">
         <template slot-scope="s">
-          <el-button type="text" icon="el-icon-view" @click="handleDetail(s.row)">详情</el-button>
-          <el-button type="text" icon="el-icon-edit" v-if="s.row.status === '0'"
+         <el-button type="text" icon="el-icon-view" @click="handleDetail(s.row)">详情</el-button>
+          <el-button type="text" icon="el-icon-s-operation" v-if="s.row.status !== '0'" @click="handleProcessInfo(s.row)">流程详情</el-button>
+         <el-button type="text" icon="el-icon-edit" v-if="s.row.status === '0'"
             @click="handleUpdate(s.row)">编辑</el-button>
           <el-button type="text" icon="el-icon-upload" v-if="s.row.status === '0'"
             @click="handleSubmit(s.row)">提交</el-button>
@@ -82,18 +83,26 @@
       <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary"
           @click="submitForm">保存</el-button></template>
     </el-dialog>
+    <el-dialog title="流程详情" :visible.sync="processInfoVisible" width="65%" append-to-body top="30px">
+      <ProcessInfo :procInsId="selectedProcInsId" v-if="processInfoVisible" />
+    </el-dialog>
   </div>
 </template>
 <script>
 import { listContract, getContract, addContract, updateContract, delContract, submitContract } from "@/api/lims/contract"
 import { uploadFile, deleteFile, listByBatch } from "@/api/lims/sysFile"
 import { getToken } from "@/utils/auth"
+import ProcessInfo from '@/components/ProcessInfo'
 export default {
-  name: "Contract", data() {
+  name: "Contract",
+  components: { ProcessInfo },
+  data() {
     return {
       contractList: [], loading: false, total: 0, showSearch: true, multiple: true, dialogVisible: false, dialogTitle: "",
       queryParams: { pageNum: 1, pageSize: 10, contractName: null, status: null }, form: {}, uploadActionUrl: '/dev-api/common/file/upload', batchId: '', uploadFileList: [],
       uploadHeaders: { Authorization: "Bearer " + getToken() },
+      processInfoVisible: false,
+      selectedProcInsId: '',
       rules: { contractName: [{ required: true, message: "合同名称不能为空", trigger: "blur" }] }
     }
   }, created() { this.getList() },
@@ -101,12 +110,13 @@ export default {
     getList() { this.loading = true; listContract(this.queryParams).then(r => { this.contractList = r.rows; this.total = r.total; this.loading = false }) },
     handleQuery() { this.queryParams.pageNum = 1; this.getList() }, resetQuery() { this.$refs.queryRef.resetFields(); this.handleQuery() },
     handleSelectionChange(s) { this.multiple = !s.length },
-    statusTag(s) { return { "0": "info", "1": "primary", "2": "success", "3": "danger" }[s] || "" },
-    statusLabel(s) { return { "0": "草稿", "1": "审批中", "2": "已通过", "3": "已驳回" }[s] || "" },
+    statusTag(s) { return { "0": "info", "1": "primary", "9": "success", "3": "danger" }[s] || "" },
+    statusLabel(s) { return { "0": "草稿", "1": "审批中", "9": "已通过", "3": "已驳回" }[s] || "" },
     handleAdd() { this.dialogTitle = "新增合同"; this.form = {}; this.batchId = 'batch_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9); this.uploadFileList = []; this.dialogVisible = true },
     handleUpdate(r) { getContract(r.id).then(res => { this.form = res.data; this.dialogTitle = "编辑合同"; if (res.data.attachmentBatch) { this.batchId = res.data.attachmentBatch; listByBatch(this.batchId).then(r2 => { this.uploadFileList = r2.data || [] }) } else { this.batchId = 'batch_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9); this.uploadFileList = [] } this.dialogVisible = true }) },
     submitForm() { this.$refs.formRef.validate(v => { if (v) { const saveData = { ...this.form, attachmentBatch: this.batchId }; (saveData.id ? updateContract(saveData) : addContract(saveData)).then(() => { this.$modal.msgSuccess("保存成功"); this.dialogVisible = false; this.getList() }) } }) },
     handleDetail(r) { this.$router.push("/lims/contract/detail/" + r.id) },
+    handleProcessInfo(r) { this.selectedProcInsId = r.procInstId; this.processInfoVisible = true },
     handleSubmit(r) { this.$modal.confirm("确定提交审批？").then(() => { submitContract({ id: r.id }).then(() => { this.$modal.msgSuccess("提交成功"); this.getList() }) }) },
     handleDelete(r) { const ids = r.id || this.selectedIds; this.$modal.confirm("确认删除？").then(() => delContract(ids).then(() => { this.getList(); this.$modal.msgSuccess("删除成功") })) },
 
