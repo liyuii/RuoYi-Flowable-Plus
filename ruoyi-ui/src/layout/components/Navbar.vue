@@ -7,6 +7,9 @@
 
     <div class="right-menu">
       <template v-if="device!=='mobile'">
+        <el-tooltip content="消息通知" effect="dark" placement="bottom">
+          <header-notification class="right-menu-item hover-effect" />
+        </el-tooltip>
         <el-tooltip content="驰骋BPM" effect="dark" placement="bottom">
           <a href="http://ccflow.org/?frm=KonBAI" target="_blank" class="right-menu-item hover-effect">驰骋BPM</a>
         </el-tooltip>
@@ -60,6 +63,7 @@ import SizeSelect from '@/components/SizeSelect'
 import Search from '@/components/HeaderSearch'
 import RuoYiGit from '@/components/RuoYi/Git'
 import RuoYiDoc from '@/components/RuoYi/Doc'
+import HeaderNotification from '@/components/HeaderNotification'
 
 export default {
   components: {
@@ -70,7 +74,8 @@ export default {
     SizeSelect,
     Search,
     RuoYiGit,
-    RuoYiDoc
+    RuoYiDoc,
+    HeaderNotification
   },
   computed: {
     ...mapGetters([
