@@ -1,16 +1,16 @@
 package com.ruoyi.web.controller.system;
 
 import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.jwt.JWTUtil;
+import cn.hutool.core.util.ObjectUtil;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.helper.LoginHelper;
 import com.ruoyi.system.domain.SysFile;
 import com.ruoyi.system.service.ISysFileService;
+import com.ruoyi.oss.service.FileStorageStrategy;
 import com.ruoyi.web.config.OnlyOfficeConfig;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
@@ -19,8 +19,11 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.constraints.NotEmpty;
-import java.io.ByteArrayInputStream;
-import java.io.File;
+import javax.servlet.http.HttpServletResponse;
+import java.io.InputStream;
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,10 +33,8 @@ import java.util.Map;
 @RequestMapping("/common/file")
 public class SysFileController extends BaseController {
 
-    @Value("${ruoyi.profile}")
-    private String profile;
-
     private final ISysFileService fileService;
+    private final FileStorageStrategy storageStrategy;
 
     private final OnlyOfficeConfig onlyOfficeConfig;
 
@@ -124,20 +125,95 @@ public class SysFileController extends BaseController {
         if (sysFile == null) {
             return ResponseEntity.notFound().build();
         }
-        String relativePath = sysFile.getOssUrl().replace("/profile/", "");
-        String fullPath = profile + File.separator + relativePath;
-        File file = new File(fullPath);
-        if (!file.exists()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        byte[] fileBytes = FileUtil.readBytes(file);
-        InputStreamResource resource = new InputStreamResource(new ByteArrayInputStream(fileBytes));
+        InputStreamResource resource = new InputStreamResource(storageStrategy.getContent(sysFile.getOssUrl()));
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .contentLength(file.length())
                 .body(resource);
     }
 
+    /**
+     * 下载文件代理
+     * 统一处理后端文件下载，适配本地和 OSS 两种存储模式
+     */
+    @GetMapping("/download/{fileId}")
+    public void download(@PathVariable Long fileId, HttpServletResponse response) throws IOException {
+        SysFile sysFile = fileService.getById(fileId);
+        if (sysFile == null) {
+            response.setStatus(404);
+            return;
+        }
+        // 设置下载响应头：指定文件名
+        response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
+        String encodedFileName = URLEncoder.encode(sysFile.getFileName(), StandardCharsets.UTF_8.name());
+        response.setHeader("Content-Disposition", "attachment;filename=" + encodedFileName);
+        // 通过策略读取文件内容并输出
+        try (InputStream inputStream = storageStrategy.getContent(sysFile.getOssUrl())) {
+            cn.hutool.core.io.IoUtil.copy(inputStream, response.getOutputStream());
+        }
+    }
+
+    /**
+     * 预览文件代理（kkfileview 使用）
+     * 避免 kkfileview 直接拉取 OSS URL 导致的跨域/信任问题
+     */
+    @GetMapping("/preview/{fileId}")
+    public void preview(@PathVariable Long fileId, HttpServletResponse response) throws IOException {
+        SysFile sysFile = fileService.getById(fileId);
+        if (sysFile == null) {
+            response.setStatus(404);
+            return;
+        }
+        // 根据文件后缀设置正确的 Content-Type
+        response.setContentType(getContentType(sysFile.getFileSuffix()));
+        // 通过策略读取文件内容并输出
+        try (InputStream inputStream = storageStrategy.getContent(sysFile.getOssUrl())) {
+            cn.hutool.core.io.IoUtil.copy(inputStream, response.getOutputStream());
+        }
+    }
+
+    /**
+     * 预览文件代理（kkfileview 使用）
+     * fileName 参数只是为了给 kkfileview 提供文件后缀信息，不被实际使用
+     */
+    @GetMapping("/preview/{fileId}/{fileName}")
+    public void preview(@PathVariable Long fileId, @PathVariable String fileName, HttpServletResponse response) throws IOException {
+        SysFile sysFile = fileService.getById(fileId);
+        if (sysFile == null) {
+            response.setStatus(404);
+            return;
+        }
+        response.setContentType(getContentType(sysFile.getFileSuffix()));
+        try (InputStream inputStream = storageStrategy.getContent(sysFile.getOssUrl())) {
+            cn.hutool.core.io.IoUtil.copy(inputStream, response.getOutputStream());
+        }
+    }
+
+    /**
+     * 根据文件后缀获取 Content-Type
+     */
+    private String getContentType(String suffix) {
+        if (suffix == null) return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        switch (suffix.toLowerCase()) {
+            case ".jpg": case ".jpeg": return "image/jpeg";
+            case ".png": return "image/png";
+            case ".gif": return "image/gif";
+            case ".bmp": return "image/bmp";
+            case ".pdf": return "application/pdf";
+            case ".doc": return "application/msword";
+            case ".docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case ".xls": return "application/vnd.ms-excel";
+            case ".xlsx": return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case ".ppt": return "application/vnd.ms-powerpoint";
+            case ".pptx": return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            case ".txt": return "text/plain;charset=UTF-8";
+            case ".mp4": return "video/mp4";
+            case ".avi": return "video/x-msvideo";
+            case ".zip": return "application/zip";
+            case ".rar": return "application/x-rar-compressed";
+            default: return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+    }
+
 }
+

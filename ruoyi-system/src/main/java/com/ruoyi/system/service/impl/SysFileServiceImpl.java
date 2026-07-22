@@ -11,62 +11,40 @@ import com.ruoyi.system.domain.SysFile;
 import com.ruoyi.system.mapper.SysFileMapper;
 import com.ruoyi.system.service.ISysFileService;
 import lombok.RequiredArgsConstructor;
+import com.ruoyi.oss.service.FileStorageStrategy;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import java.io.File;
-import java.io.IOException;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class SysFileServiceImpl implements ISysFileService {
 
-   private final SysFileMapper baseMapper;
+    private final SysFileMapper baseMapper;
 
-   @Value("${ruoyi.profile}")
-   private String profile;
-
+    private final FileStorageStrategy storageStrategy;
    @Override
    public SysFile upload(MultipartFile file, String bizType, String batchId) {
-       if (ObjectUtil.isNull(file)) {
-           throw new ServiceException("上传文件不能为空");
-       }
-       String originalName = file.getOriginalFilename();
-       String suffix = StringUtils.substring(originalName, originalName.lastIndexOf("."), originalName.length());
-       try {
-            LocalDate today = LocalDate.now();
-            String yearMonth = today.format(DateTimeFormatter.ofPattern("yyyy-MM"));
-            String day = String.format("%02d", today.getDayOfMonth());
-            String uploadDir = profile + File.separator + bizType + File.separator + yearMonth + File.separator + day;
-            File dir = new File(uploadDir);
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
-           long size = file.getSize();
-           String newFileName = UUID.randomUUID().toString() + suffix;
-            File dest = new File(dir, newFileName);
-            file.transferTo(dest);
-            SysFile sysFile = new SysFile();
-            sysFile.setBizType(bizType);
-            sysFile.setBatchId(batchId);
-            sysFile.setFileName(originalName);
-            sysFile.setFileSuffix(suffix);
-            sysFile.setFileSize(size);
-            sysFile.setOssUrl("/profile/" + bizType + "/" + yearMonth + "/" + day + "/" + newFileName);
-            sysFile.setCreateBy(LoginHelper.getUsername());
-            sysFile.setCreateTime(new Date());
-           baseMapper.insert(sysFile);
-           return sysFile;
-       } catch (IOException e) {
-            throw new ServiceException("文件保存失败: " + e.getMessage());
-       }
+        // 在调用存储策略之前读取文件信息（上传后 MultipartFile 的临时文件可能被清理）
+        String originalName = file.getOriginalFilename();
+        String suffix = originalName.substring(originalName.lastIndexOf("."));
+        long fileSize = file.getSize();
+
+        String fileUrl = storageStrategy.upload(file, bizType);
+        SysFile sysFile = new SysFile();
+        sysFile.setBizType(bizType);
+        sysFile.setBatchId(batchId);
+        sysFile.setFileName(originalName);
+        sysFile.setFileSuffix(suffix);
+        sysFile.setFileSize(fileSize);
+        sysFile.setOssUrl(fileUrl);
+        sysFile.setCreateBy(LoginHelper.getUsername());
+        sysFile.setCreateTime(new Date());
+        baseMapper.insert(sysFile);
+        return sysFile;
    }
 
     @Override
@@ -75,16 +53,7 @@ public class SysFileServiceImpl implements ISysFileService {
         if (ObjectUtil.isNull(sysFile)) {
             return false;
         }
-        try {
-            String relativePath = sysFile.getOssUrl().replace("/profile/", "");
-            String fullPath = profile + File.separator + relativePath;
-            File file = new File(fullPath);
-            if (file.exists()) {
-                file.delete();
-            }
-        } catch (Exception e) {
-            log.warn("删除本地文件失败: {}", e.getMessage());
-        }
+        storageStrategy.delete(sysFile.getOssUrl());
         return baseMapper.deleteById(id) > 0;
     }
 
@@ -114,9 +83,6 @@ public class SysFileServiceImpl implements ISysFileService {
         if (sysFile == null) {
             throw new ServiceException("文件不存在");
         }
-        String relativePath = sysFile.getOssUrl().replace("/profile/", "");
-        String fullPath = profile + File.separator + relativePath;
-        cn.hutool.core.io.FileUtil.writeBytes(content, new File(fullPath));
-        log.info("文件在线编辑保存完成: fileId={}, fileName={}", id, sysFile.getFileName());
+        storageStrategy.overwrite(sysFile.getOssUrl(), content);
     }
 }

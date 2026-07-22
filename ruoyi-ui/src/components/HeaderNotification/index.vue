@@ -54,7 +54,7 @@ export default {
   },
   mounted() {
     this.fetchData()
-    this.polling = setInterval(() => this.fetchUnreadCount(), 30000)
+    // this.polling = setInterval(() => this.fetchUnreadCount(), 30000)  // 调试时临时停掉轮询
   },
   beforeDestroy() {
     clearInterval(this.polling)

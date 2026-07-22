@@ -1,5 +1,8 @@
 # 项目相关配置
 ruoyi:
+  # 文件存储策略：local 表示本地存储，oss 表示 OSS 对象存储
+  file:
+    storage: oss
   # 名称
   name: RuoYi-Flowable-Plus
   # 版本
@@ -152,6 +155,9 @@ security:
     - /actuator/**
     # OnlyOffice 文件下载和回调
     - /common/file/onlyoffice/**
+    # kkfileview 文件预览代理
+#    - /common/file/preview/**
+#    - /common/file/download/**
 
 # MyBatisPlus配置
 # https://baomidou.com/config/

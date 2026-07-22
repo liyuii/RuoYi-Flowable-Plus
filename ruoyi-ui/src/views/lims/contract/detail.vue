@@ -54,14 +54,14 @@ export default {
     } 
   },
   methods: {
-    handlePreview(f) {
-      var fileUrl = btoa('http://127.0.0.1:8082' + f.ossUrl);
-      window.open('http://127.0.0.1:8012/onlinePreview?url=' + fileUrl, '_blank');
-    },
+  handlePreview(f) {
+                  var fileUrl = btoa('http://127.0.0.1:8082/common/file/preview/' + f.id + '/' + encodeURIComponent(f.fileName));
+                  window.open('http://127.0.0.1:8012/onlinePreview?url=' + fileUrl, '_blank');
+                },
    handleDownload(f) {
-      const a = document.createElement('a');
-      a.href = '/dev-api' + f.ossUrl;
-      a.download = f.fileName;
+                   const a = document.createElement('a');
+                   a.href = '/dev-api/common/file/download/' + f.id;
+                   a.download = f.fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
