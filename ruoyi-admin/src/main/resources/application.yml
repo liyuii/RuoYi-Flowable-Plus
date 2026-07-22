@@ -15,6 +15,17 @@ ruoyi:
   # 文件上传路径
   profile: D:/GitHubItem/RuoYi-Flowable-Plus/upload
 
+# OnlyOffice 在线编辑配置
+onlyoffice:
+  # OnlyOffice Document Server 地址
+  doc-server-url: http://192.168.137.1:8088
+  # 应用自身地址，用于构造 OnlyOffice 容器能访问到的回调/下载 URL
+  # 可用 host.docker.internal 代替 localhost
+  app-url: http://192.168.137.1:8082
+  # JWT 密钥，必须与 docker run 时的 JWT_SECRET 一致
+  jwt-secret: my_secret_key_2026
+
+
 captcha:
   # 页面 <参数设置> 可开启关闭 验证码校验
   # 验证码类型 math 数组计算 char 字符验证
@@ -29,7 +40,7 @@ captcha:
 # 开发环境配置
 server:
   # 服务器的HTTP端口，默认为8080
-  port: 8080
+  port: 8082
   servlet:
     # 应用的访问路径
     context-path: /
@@ -139,6 +150,8 @@ security:
     # actuator 监控配置
     - /actuator
     - /actuator/**
+    # OnlyOffice 文件下载和回调
+    - /common/file/onlyoffice/**
 
 # MyBatisPlus配置
 # https://baomidou.com/config/

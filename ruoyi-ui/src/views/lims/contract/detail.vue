@@ -24,6 +24,7 @@
           <template slot-scope="s">
             <el-button type="text" icon="el-icon-view" @click="handlePreview(s.row)">预览</el-button>
             <el-button type="text" icon="el-icon-download" @click="handleDownload(s.row)">下载</el-button>
+            <el-button v-if="isEditable(s.row)" type="text" icon="el-icon-edit" @click="handleEdit(s.row)">在线编辑</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -54,7 +55,7 @@ export default {
   },
   methods: {
     handlePreview(f) {
-      var fileUrl = btoa('http://127.0.0.1:8080' + f.ossUrl);
+      var fileUrl = btoa('http://127.0.0.1:8082' + f.ossUrl);
       window.open('http://127.0.0.1:8012/onlinePreview?url=' + fileUrl, '_blank');
     },
    handleDownload(f) {
@@ -67,7 +68,15 @@ export default {
     },
  goBack() { this.$router.push("/lims/contract") },
     statusTag(s) { return { "0":"info","1":"primary","9":"success","3":"danger","4":"warning" }[s] || "" },
-    statusLabel(s) { return { "0":"草稿","1":"审批中","9":"已通过","3":"已驳回","4":"已过期" }[s] || "" }
+    statusLabel(s) { return { "0":"草稿","1":"审批中","9":"已通过","3":"已驳回","4":"已过期" }[s] || "" },
+    isEditable(row) {
+      var suffix = (row.fileSuffix || "").toLowerCase();
+      return suffix === ".docx" || suffix === ".doc";
+    },
+    handleEdit(row) {
+      var url = this.$router.resolve("/editor/" + row.id).href;
+      window.open(url, "_blank");
+    }
   }
 }
 </script>

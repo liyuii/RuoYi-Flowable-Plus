@@ -1,6 +1,7 @@
 package com.ruoyi.system.service.impl;
 
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.io.FileUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.ruoyi.common.exception.ServiceException;
@@ -27,7 +28,7 @@ import java.util.UUID;
 @Service
 public class SysFileServiceImpl implements ISysFileService {
 
-    private final SysFileMapper baseMapper;
+   private final SysFileMapper baseMapper;
 
    @Value("${ruoyi.profile}")
    private String profile;
@@ -95,10 +96,27 @@ public class SysFileServiceImpl implements ISysFileService {
     }
 
     @Override
+    public SysFile getById(Long id) {
+        return baseMapper.selectById(id);
+    }
+
+    @Override
     public List<SysFile> listByBatch(String batchId) {
         LambdaQueryWrapper<SysFile> lqw = Wrappers.lambdaQuery();
         lqw.eq(SysFile::getBatchId, batchId);
         lqw.orderByAsc(SysFile::getId);
         return baseMapper.selectList(lqw);
+    }
+
+    @Override
+    public void overwriteFile(Long id, byte[] content) {
+        SysFile sysFile = baseMapper.selectById(id);
+        if (sysFile == null) {
+            throw new ServiceException("文件不存在");
+        }
+        String relativePath = sysFile.getOssUrl().replace("/profile/", "");
+        String fullPath = profile + File.separator + relativePath;
+        cn.hutool.core.io.FileUtil.writeBytes(content, new File(fullPath));
+        log.info("文件在线编辑保存完成: fileId={}, fileName={}", id, sysFile.getFileName());
     }
 }

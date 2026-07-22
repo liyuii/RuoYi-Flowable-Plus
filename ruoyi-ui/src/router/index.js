@@ -100,6 +100,13 @@ export const constantRoutes = [
         meta: { title: '个人中心', icon: 'user' }
       }
     ]
+  },
+  {
+    path: '/editor/:fileId(\\d+)',
+    component: () => import('@/views/lims/contract/editor'),
+    name: 'OnlineEditor',
+    meta: { title: "在线编辑" },
+    hidden: true
   }
 ]
 

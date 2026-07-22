@@ -76,6 +76,7 @@
           <template slot-scope="s">
             <el-button type="text" icon="el-icon-view" title="预览" @click="handlePreviewFile(s.row)" />
             <el-button type="text" icon="el-icon-download" title="下载" @click="handleDownloadFile(s.row)" />
+            <el-button v-if="isEditable(s.row)" type="text" icon="el-icon-edit" title="在线编辑" @click="handleEdit(s.row)" />
             <el-button type="text" icon="el-icon-delete" title="删除" @click="handleDeleteFile(s.row)" />
           </template>
         </el-table-column>
@@ -90,7 +91,7 @@
 </template>
 <script>
 import { listContract, getContract, addContract, updateContract, delContract, submitContract } from "@/api/lims/contract"
-import { uploadFile, deleteFile, listByBatch } from "@/api/lims/sysFile"
+import { uploadFile, deleteFile, listByBatch, getEditorConfig } from "@/api/lims/sysFile"
 import { getToken } from "@/utils/auth"
 import ProcessInfo from '@/components/ProcessInfo'
 export default {
@@ -143,7 +144,7 @@ export default {
       this.$modal.msgWarning('最多只能上传 10 个文件');
     },
     handlePreviewFile(row) {
-      var fileUrl = btoa('http://127.0.0.1:8080' + row.ossUrl);
+      var fileUrl = btoa('http://127.0.0.1:8082' + row.ossUrl);
       window.open('http://127.0.0.1:8012/onlinePreview?url=' + fileUrl, '_blank');
     },
     handleDownloadFile(row) {
@@ -157,6 +158,14 @@ export default {
     handleDeleteFile(row) {
       this.handleUploadRemove(row, this.uploadFileList);
     },
+    isEditable(row) {
+      var suffix = (row.fileSuffix || "").toLowerCase();
+      return suffix === ".docx" || suffix === ".doc";
+    },
+    handleEdit(row) {
+      var url = this.$router.resolve("/editor/" + row.id).href;
+      window.open(url, "_blank");
+    }
   }
 }
 </script>

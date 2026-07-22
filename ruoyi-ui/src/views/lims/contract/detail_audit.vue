@@ -21,6 +21,7 @@
           <template slot-scope="s">
             <el-button type="text" icon="el-icon-view" @click="handlePreview(s.row)">预览</el-button>
             <el-button type="text" icon="el-icon-download" @click="handleDownload(s.row)">下载</el-button>
+            <el-button v-if="isEditable(s.row)" type="text" icon="el-icon-edit" @click="handleEdit(s.row)">在线编辑</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -39,7 +40,7 @@
 </template>
 <script>
 import { getContract } from "@/api/lims/contract"
-import { listByBatch } from "@/api/lims/sysFile"
+import { listByBatch, getEditorConfig } from "@/api/lims/sysFile"
 import { complete, rejectTask } from "@/api/workflow/task"
 export default {
   name: "ContractDetailAudit",
@@ -77,6 +78,14 @@ export default {
     goBack() { this.$router.back() },
     statusTag(s) { return { "0":"info","1":"primary","9":"success","3":"danger" }[s] || "" },
     statusLabel(s) { return { "0":"草稿","1":"审批中","9":"已通过","3":"已驳回" }[s] || "" },
+    isEditable(row) {
+      var suffix = (row.fileSuffix || "").toLowerCase();
+      return suffix === ".docx" || suffix === ".doc";
+    },
+    handleEdit(row) {
+      var url = this.$router.resolve("/editor/" + row.id).href;
+      window.open(url, "_blank");
+    },
     handleComplete() { if (!this.taskForm.comment) { this.$modal.msgWarning("请输入审批意见"); return } this.submitting = true; complete({ taskId: this.taskForm.taskId, procInsId: this.taskForm.procInsId, comment: this.taskForm.comment }).then(r => { this.$modal.msgSuccess(r.msg); this.$router.back() }).finally(() => { this.submitting = false }) },
     handleReject() { if (!this.taskForm.comment) { this.$modal.msgWarning("请输入审批意见"); return } this.submitting = true; rejectTask({ taskId: this.taskForm.taskId, procInsId: this.taskForm.procInsId, comment: this.taskForm.comment }).then(r => { this.$modal.msgSuccess(r.msg); this.$router.back() }).finally(() => { this.submitting = false }) }
   }
