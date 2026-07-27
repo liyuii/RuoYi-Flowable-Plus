@@ -11,14 +11,20 @@ import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.flowable.factory.FlowServiceFactory;
 import com.ruoyi.lims.domain.ContractApprove;
 import com.ruoyi.lims.service.IContractApproveService;
+import com.ruoyi.lims.vo.ContractNotificationMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.flowable.engine.RuntimeService;
 import org.flowable.engine.HistoryService;
+import org.flowable.engine.TaskService;
 import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.engine.history.HistoricProcessInstance;
+import org.flowable.identitylink.api.IdentityLink;
+import org.flowable.task.api.Task;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.web.bind.annotation.*;
 import javax.validation.Valid;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Slf4j
@@ -28,8 +34,9 @@ import java.util.*;
 public class ContractController extends BaseController {
     private final IContractApproveService contractService;
     private final FlowServiceFactory flowServiceFactory;
+    private final RabbitTemplate rabbitTemplate;
 
-   @GetMapping("/list")
+    @GetMapping("/list")
    public TableDataInfo<ContractApprove> list(ContractApprove bo, PageQuery pageQuery) {
         TableDataInfo<ContractApprove> page = contractService.queryPageList(bo, pageQuery);
         HistoryService historyService = flowServiceFactory.getHistoryService();
@@ -83,12 +90,58 @@ public class ContractController extends BaseController {
         //启动流程
         RuntimeService runtimeService = flowServiceFactory.getRuntimeService();
         runtimeService.startProcessInstanceByKey("Process_1781834760920", "contract_" + entity.getId());
+
+        // 异步部分：发送通知消息到 RabbitMQ
+        TaskService taskService = flowServiceFactory.getTaskService();
+        Task task = taskService.createTaskQuery()
+            .processInstanceBusinessKey("contract_" + entity.getId())
+            .singleResult();
+
+//        ContractNotificationMessage msg = new ContractNotificationMessage();
+//        msg.setContractId(entity.getId());
+//        msg.setContractName(entity.getContractName());
+//        msg.setApproverIds(queryApproverIds(task));  // 查询审批人列表
+//        msg.setNotificationType("approve_submit");
+//        msg.setSubmitterUserId(LoginHelper.getUserId());
+//        msg.setSubmitTime(LocalDateTime.now().toString());
+//        msg.setProcInsId(task.getProcessInstanceId());
+//        msg.setTaskId(task.getId());
+//
+//        rabbitTemplate.convertAndSend(
+//            "contract.notification.exchange",
+//            "contract.notification.approve",
+//            msg);
         log.info("合同审批流程启动成功，流程实例ID: {}", "contract_" + entity.getId());
         return R.ok("提交成功");
     }
 
-
-
+    /**
+     * 查询当前审批节点的审批人 ID 列表
+     */
+    private List<Long> queryApproverIds(Task task) {
+        if (task == null) {
+            return Collections.emptyList();
+        }
+        // 优先取 assignee
+        if (StringUtils.isNotBlank(task.getAssignee())) {
+            try {
+                return Collections.singletonList(Long.parseLong(task.getAssignee()));
+            } catch (NumberFormatException e) {
+                log.warn("审批人 assignee 不是数字: {}", task.getAssignee());
+            }
+        }
+        // 回退：取候选人
+        TaskService taskService = flowServiceFactory.getTaskService();
+        List<IdentityLink> links = taskService.getIdentityLinksForTask(task.getId());
+        List<Long> userIds = new ArrayList<>();
+        for (IdentityLink link : links) {
+            if (link.getUserId() != null) {
+                try { userIds.add(Long.parseLong(link.getUserId())); }
+                catch (NumberFormatException ignored) {}
+            }
+        }
+        return userIds;
+    }
 
 //    @PostMapping("/submit")
 //    public R<Void> submit(@RequestBody ContractApprove bo) {
