@@ -19,25 +19,25 @@ pipeline {
             steps {
                 echo '开始 Maven 编译...'
                 // 如果项目使用 Maven
-                bat 'mvn clean package -DskipTests'
+                sh 'mvn clean package -DskipTests'
             }
         }
 
         stage('构建 Docker 镜像') {
             steps {
                 echo '构建 Docker 镜像...'
-                bat "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
             }
         }
 
         stage('启动容器') {
             steps {
                 echo '停止并删除旧容器...'
-                bat "docker stop ${IMAGE_NAME} || exit 0"
-                bat "docker rm ${IMAGE_NAME} || exit 0"
+                sh "docker stop ${IMAGE_NAME} || exit 0"
+                sh "docker rm ${IMAGE_NAME} || exit 0"
 
                 echo '启动新容器...'
-                bat """
+                sh """
                     docker run -d \\
                         --name ${IMAGE_NAME} \\
                         -p 8082:8082 \\
