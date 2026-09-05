@@ -61,6 +61,11 @@ public class ReviewDocController {
         return R.ok("已生成脱敏文件: " + reviewDocService.applyMask(docId));
     }
 
+    @PostMapping("/doc/{docId}/complete")
+    public R<Void> complete(@PathVariable Long docId) {
+        return toR(reviewDocService.completeReview(docId));
+    }
+
     private R<Void> toR(Boolean flag) {
         return flag ? R.ok() : R.fail("操作失败");
     }

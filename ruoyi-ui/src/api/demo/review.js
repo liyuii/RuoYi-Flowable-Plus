@@ -51,10 +51,10 @@ export function updateReviewSpan(data) {
   })
 }
 
-// 按已确认记录执行脱敏
-export function applyReviewDoc(docId) {
+// 审核完成（校验无待确认记录后，文档状态改为 2）
+export function completeReviewDoc(docId) {
   return request({
-    url: '/demo/review/doc/' + docId + '/apply',
+    url: '/demo/review/doc/' + docId + '/complete',
     method: 'post'
   })
 }

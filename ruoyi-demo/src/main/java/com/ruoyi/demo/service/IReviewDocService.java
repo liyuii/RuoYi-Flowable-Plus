@@ -23,6 +23,11 @@ public interface IReviewDocService {
 
     ReviewSpan updateSpan(ReviewSpan span);
 
+    /**
+     * 审核完成：校验没有待确认记录后，把文档状态改为 2
+     */
+    Boolean completeReview(Long docId);
+
     String applyMask(Long docId);
 
 }

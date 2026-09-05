@@ -68,7 +68,17 @@ public class ReviewDocServiceImpl implements IReviewDocService {
         ReviewSpan span = getSpanOrThrow(id);
         span.setStatus("1");
         span.setUpdateTime(new Date());
-        return spanMapper.updateById(span) > 0;
+        boolean updated = spanMapper.updateById(span) > 0;
+        if (updated) {
+            // 第一次确认后，文档从待审核进入审核中
+            ReviewDoc doc = docMapper.selectById(span.getDocId());
+            if (doc != null && "0".equals(doc.getStatus())) {
+                doc.setStatus("1");
+                doc.setUpdateTime(new Date());
+                docMapper.updateById(doc);
+            }
+        }
+        return updated;
     }
 
     @Override
@@ -85,9 +95,14 @@ public class ReviewDocServiceImpl implements IReviewDocService {
             throw new ServiceException("docId不能为空");
         }
         getDocOrThrow(span.getDocId());
-        validateSpan(span);
+        span.setSpanText(span.getSpanText().trim());
+        validateWordSpan(span);
+        checkUniqueSpan(span.getDocId(), null, span.getSpanText());
         Date now = new Date();
         span.setId(null);
+        span.setBlockId(null);
+        span.setStartChar(null);
+        span.setEndChar(null);
         span.setSource(StringUtils.isBlank(span.getSource()) ? "A" : span.getSource());
         span.setStatus(StringUtils.isBlank(span.getStatus()) ? "0" : span.getStatus());
         span.setCreateTime(now);
@@ -99,15 +114,28 @@ public class ReviewDocServiceImpl implements IReviewDocService {
     @Override
     public ReviewSpan updateSpan(ReviewSpan span) {
         ReviewSpan db = getSpanOrThrow(span.getId());
-        validateSpan(span);
-        db.setBlockId(span.getBlockId());
-        db.setStartChar(span.getStartChar());
-        db.setEndChar(span.getEndChar());
+        span.setSpanText(span.getSpanText().trim());
+        validateWordSpan(span);
+        checkUniqueSpan(db.getDocId(), db.getId(), span.getSpanText());
         db.setSpanText(span.getSpanText());
         db.setSpanType(span.getSpanType());
         db.setUpdateTime(new Date());
         spanMapper.updateById(db);
         return spanMapper.selectById(db.getId());
+    }
+
+    @Override
+    public Boolean completeReview(Long docId) {
+        ReviewDoc doc = getDocOrThrow(docId);
+        Long pendingCount = spanMapper.selectCount(Wrappers.<ReviewSpan>lambdaQuery()
+            .eq(ReviewSpan::getDocId, docId)
+            .eq(ReviewSpan::getStatus, "0"));
+        if (pendingCount != null && pendingCount > 0) {
+            throw new ServiceException("还有 " + pendingCount + " 条待确认记录未处理");
+        }
+        doc.setStatus("2");
+        doc.setUpdateTime(new Date());
+        return docMapper.updateById(doc) > 0;
     }
 
     @Override
@@ -143,15 +171,22 @@ public class ReviewDocServiceImpl implements IReviewDocService {
         return span;
     }
 
-    private void validateSpan(ReviewSpan span) {
-        if (span.getBlockId() == null || span.getStartChar() == null || span.getEndChar() == null) {
-            throw new ServiceException("blockId或起止位置不能为空");
-        }
-        if (span.getEndChar() <= span.getStartChar()) {
-            throw new ServiceException("结束位置必须大于起始位置");
+    private void validateWordSpan(ReviewSpan span) {
+        if (StringUtils.isBlank(span.getSpanText())) {
+            throw new ServiceException("敏感词不能为空");
         }
         if (StringUtils.isBlank(span.getSpanType())) {
             throw new ServiceException("敏感类型不能为空");
+        }
+    }
+
+    private void checkUniqueSpan(Long docId, Long excludeId, String spanText) {
+        Long count = spanMapper.selectCount(Wrappers.<ReviewSpan>lambdaQuery()
+            .eq(ReviewSpan::getDocId, docId)
+            .eq(ReviewSpan::getSpanText, spanText)
+            .ne(excludeId != null, ReviewSpan::getId, excludeId));
+        if (count != null && count > 0) {
+            throw new ServiceException("该敏感词在当前文档中已存在");
         }
     }
 

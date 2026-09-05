@@ -28,6 +28,13 @@
             <artifactId>ruoyi-sms</artifactId>
         </dependency>
 
+        <!-- Aspose.Words 本地演示（评估模式，输出会带水印） -->
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-words</artifactId>
+            <version>20.7</version>
+        </dependency>
+
         <!-- 短信 用哪个导入哪个依赖 -->
 <!--        <dependency>-->
 <!--            <groupId>com.aliyun</groupId>-->
@@ -40,5 +47,12 @@
 <!--        </dependency>-->
 
     </dependencies>
+
+    <repositories>
+        <repository>
+            <id>aspose-maven-repository</id>
+            <url>https://releases.aspose.com/java/repo/</url>
+        </repository>
+    </repositories>
 
 </project>

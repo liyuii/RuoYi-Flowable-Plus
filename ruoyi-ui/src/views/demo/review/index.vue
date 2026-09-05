@@ -12,11 +12,9 @@
         <el-table-column label="ID" align="center" prop="id" width="80" />
         <el-table-column label="文档名称" align="center" prop="docName" />
         <el-table-column label="文件路径" align="center" prop="filePath" show-overflow-tooltip />
-        <el-table-column label="状态" align="center" width="100">
+        <el-table-column label="状态" align="center" width="120">
           <template slot-scope="scope">
-            <el-tag :type="scope.row.status === '1' ? 'success' : 'warning'">
-              {{ scope.row.status === '1' ? '已审核' : '待审核' }}
-            </el-tag>
+            <el-tag :type="docStatusTag(scope.row.status)">{{ docStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
@@ -41,28 +39,30 @@
       <div class="review-header">
         <el-button icon="el-icon-back" size="mini" @click="backList">返回</el-button>
         <span class="review-title">{{ content.doc.docName }}</span>
-        <el-button
-          :type="addMode ? 'danger' : 'warning'"
+        <el-tag :type="docStatusTag(content.doc.status)">{{ docStatusText(content.doc.status) }}</el-tag>
+        <el-input
+          v-model="searchWord"
           size="mini"
-          @click="toggleAddMode"
-        >{{ addMode ? '取消补充' : '手动补充' }}</el-button>
+          clearable
+          placeholder="输入关键词复查"
+          style="width: 180px"
+        />
+        <el-button type="warning" size="mini" icon="el-icon-plus" @click="openAddDialog">手动补充</el-button>
         <el-button
-          v-if="adjustId"
-          type="danger"
+          type="success"
           size="mini"
-          @click="cancelAdjust"
-        >取消调整</el-button>
-        <el-button type="success" size="mini" icon="el-icon-check" @click="applyDoc">执行脱敏</el-button>
+          icon="el-icon-check"
+          :disabled="content.doc.status === '2'"
+          @click="completeDoc"
+        >审核完成</el-button>
       </div>
 
       <div class="review-tip">
-        <span v-if="addMode" class="tip-text">请在左侧文档中划选需要补充的敏感内容</span>
-        <span v-else-if="adjustId" class="tip-text">请重新划选该记录的准确范围</span>
-        <span v-else class="tip-text">点击右侧记录可确认或忽略；黄色为机器识别，绿色为已确认</span>
+        同一词条会高亮全文所有出现位置；点击侧边词条可定位，点击文档高亮可选中对应词条。
       </div>
 
       <div class="review-body">
-        <div class="doc-panel" @mouseup="onDocMouseUp">
+        <div class="doc-panel" @click="onDocClick">
           <template v-for="(node, ni) in content.nodes">
             <p
               v-if="node.type === 'PARAGRAPH'"
@@ -74,7 +74,10 @@
                 v-for="(part, pi) in paragraphParts(node.blockId, node.text)"
                 :key="pi"
                 :class="part.cls"
-              >{{ part.text }}</span>
+                :data-span-id="part.spanId"
+              >
+                <i v-if="part.spanId" class="hl-badge">{{ part.badge }}</i>{{ part.text }}
+              </span>
             </p>
             <table v-else-if="node.type === 'TABLE'" :key="ni" class="doc-table">
               <tbody>
@@ -90,7 +93,10 @@
                         v-for="(part, pj) in paragraphParts(para.blockId, para.text)"
                         :key="pj"
                         :class="part.cls"
-                      >{{ part.text }}</span>
+                        :data-span-id="part.spanId"
+                      >
+                        <i v-if="part.spanId" class="hl-badge">{{ part.badge }}</i>{{ part.text }}
+                      </span>
                     </p>
                   </td>
                 </tr>
@@ -100,17 +106,25 @@
         </div>
 
         <div class="span-panel">
-          <div class="span-panel-title">敏感识别记录（{{ content.spans.length }}）</div>
-          <div v-for="span in content.spans" :key="span.id" class="span-item">
+          <div class="span-panel-title">敏感词记录（{{ visibleSpans.length }}）</div>
+          <div
+            v-for="span in visibleSpans"
+            :key="span.id"
+            class="span-item"
+            :class="{ active: activeSpanId === span.id }"
+            :data-span-id="span.id"
+            @click="scrollToSpan(span.id)"
+          >
             <div class="span-text">
-              {{ span.spanText }}
+              <i class="side-badge">{{ spanBadge(span.id) }}</i>
+              <span class="span-word">{{ span.spanText }}</span>
               <el-tag size="mini" type="warning">{{ span.spanType }}</el-tag>
               <el-tag size="mini" :type="span.source === 'M' ? 'info' : 'success'">
                 {{ span.source === 'M' ? '机器' : '人工' }}
               </el-tag>
             </div>
             <div class="span-status">{{ statusText(span.status) }}</div>
-            <div class="span-actions">
+            <div class="span-actions" @click.stop>
               <el-button
                 v-if="span.status === '0'"
                 type="success"
@@ -123,23 +137,17 @@
                 size="mini"
                 @click="ignoreSpan(span.id)"
               >忽略</el-button>
-              <el-button
-                v-if="span.status !== '2'"
-                type="warning"
-                size="mini"
-                @click="startAdjust(span)"
-              >调整</el-button>
             </div>
           </div>
-          <el-empty v-if="content.spans.length === 0" description="暂无识别记录" />
+          <el-empty v-if="visibleSpans.length === 0" description="暂无敏感词记录" />
         </div>
       </div>
     </div>
 
-    <el-dialog :title="dialogTitle" :visible.sync="dialogVisible" width="460px">
+    <el-dialog title="手动补充敏感词" :visible.sync="dialogVisible" width="460px">
       <el-form label-width="80px">
-        <el-form-item label="原文">
-          <span class="dialog-text">{{ form.spanText }}</span>
+        <el-form-item label="敏感词">
+          <el-input v-model="form.spanText" placeholder="请输入敏感词，将匹配全文所有出现" />
         </el-form-item>
         <el-form-item label="类型">
           <el-select v-model="form.spanType" placeholder="请选择类型" style="width: 100%">
@@ -162,8 +170,7 @@ import {
   confirmReviewSpan,
   ignoreReviewSpan,
   addReviewSpan,
-  updateReviewSpan,
-  applyReviewDoc
+  completeReviewDoc
 } from '@/api/demo/review'
 
 export default {
@@ -176,12 +183,17 @@ export default {
       total: 0,
       queryParams: { pageNum: 1, pageSize: 10 },
       content: { doc: {}, nodes: [], spans: [] },
-      addMode: false,
-      adjustId: null,
       dialogVisible: false,
-      dialogTitle: '手动补充',
+      dialogTitle: '手动补充敏感词',
       types: ['人名', '地名', '机构名', '电话', '其他'],
-      form: {}
+      form: {},
+      activeSpanId: null,
+      searchWord: ''
+    }
+  },
+  computed: {
+    visibleSpans() {
+      return (this.content.spans || []).filter(s => s.status !== '2')
     }
   },
   created() {
@@ -215,30 +227,73 @@ export default {
       this.getList()
     },
     resetReviewState() {
-      this.addMode = false
-      this.adjustId = null
       this.dialogVisible = false
       this.form = {}
+      this.activeSpanId = null
+      this.searchWord = ''
     },
     reloadContent() {
       getReviewContent(this.content.doc.id).then(res => {
         this.content = res.data
-        this.resetReviewState()
+        this.activeSpanId = null
       })
     },
     statusText(status) {
       return status === '0' ? '待确认' : status === '1' ? '已确认' : '已忽略'
     },
-    paragraphParts(blockId, text) {
-      const spans = (this.content.spans || []).filter(s => String(s.blockId) === String(blockId) && s.status !== '2')
-      if (!spans.length) {
-        return [{ text: text, cls: 'normal' }]
+    docStatusText(status) {
+      return status === '0' ? '待审核' : status === '1' ? '审核中' : '审核完成'
+    },
+    docStatusTag(status) {
+      return status === '0' ? 'warning' : status === '1' ? '' : 'success'
+    },
+    spanBadge(id) {
+      const index = this.visibleSpans.findIndex(s => s.id === id)
+      return index >= 0 ? index + 1 : ''
+    },
+    findOccurrences(text, word) {
+      const result = []
+      if (!word) {
+        return result
       }
-      const len = text.length
-      const bounds = new Set([0, len])
-      spans.forEach(s => {
-        bounds.add(Math.max(0, Math.min(len, s.startChar)))
-        bounds.add(Math.max(0, Math.min(len, s.endChar)))
+      let from = 0
+      let index
+      while ((index = text.indexOf(word, from)) !== -1) {
+        result.push({ start: index, end: index + word.length })
+        from = index + word.length
+      }
+      return result
+    },
+    paragraphParts(blockId, text) {
+      const sensitive = []
+      this.visibleSpans.forEach(span => {
+        if (!span.spanText) {
+          return
+        }
+        this.findOccurrences(text, span.spanText).forEach(range => {
+          sensitive.push({ start: range.start, end: range.end, span: span })
+        })
+      })
+      // 重叠位置优先保留较长的敏感词
+      sensitive.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start))
+      const kept = []
+      sensitive.forEach(item => {
+        if (!kept.length || item.start >= kept[kept.length - 1].end) {
+          kept.push(item)
+        }
+      })
+
+      const keyword = (this.searchWord || '').trim()
+      const searchRanges = keyword ? this.findOccurrences(text, keyword) : []
+
+      const bounds = new Set([0, text.length])
+      kept.forEach(item => {
+        bounds.add(item.start)
+        bounds.add(item.end)
+      })
+      searchRanges.forEach(item => {
+        bounds.add(item.start)
+        bounds.add(item.end)
       })
       const sorted = Array.from(bounds).sort((a, b) => a - b)
       const parts = []
@@ -248,15 +303,73 @@ export default {
         if (end <= start) {
           continue
         }
-        const covered = spans.filter(s => s.startChar <= start && s.endChar >= end)
-        if (covered.length) {
-          const cls = covered.some(s => s.status === '1') ? 'hl-confirmed' : 'hl-pending'
-          parts.push({ text: text.slice(start, end), cls: cls })
-        } else {
-          parts.push({ text: text.slice(start, end), cls: 'normal' })
+        const hit = kept.find(item => item.start <= start && item.end >= end)
+        const isSearch = searchRanges.some(item => item.start <= start && item.end >= end)
+        const cls = []
+        if (hit) {
+          cls.push(hit.span.status === '1' ? 'hl-confirmed' : 'hl-pending')
         }
+        if (isSearch) {
+          cls.push('search-hit')
+        }
+        if (!cls.length) {
+          cls.push('normal')
+        }
+        parts.push({
+          text: text.slice(start, end),
+          cls: cls,
+          spanId: hit ? hit.span.id : null,
+          badge: hit ? this.spanBadge(hit.span.id) : ''
+        })
       }
       return parts
+    },
+    scrollToSpan(id) {
+      this.activeSpanId = id
+      this.$nextTick(() => {
+        const elements = Array.from(document.querySelectorAll('.doc-panel [data-span-id="' + id + '"]'))
+        if (!elements.length) {
+          return
+        }
+        elements[0].scrollIntoView({ behavior: 'smooth', block: 'center' })
+        elements.forEach(el => {
+          el.classList.add('flash')
+          setTimeout(() => el.classList.remove('flash'), 1200)
+        })
+      })
+    },
+    onDocClick(event) {
+      const el = event.target.closest ? event.target.closest('[data-span-id]') : null
+      if (!el) {
+        return
+      }
+      const id = Number(el.getAttribute('data-span-id'))
+      this.activeSpanId = id
+      this.$nextTick(() => {
+        const side = document.querySelector('.span-panel .span-item[data-span-id="' + id + '"]')
+        if (side) {
+          side.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        }
+      })
+    },
+    openAddDialog() {
+      this.form = {
+        docId: this.content.doc.id,
+        spanText: '',
+        spanType: '人名'
+      }
+      this.dialogVisible = true
+    },
+    submitSpan() {
+      if (!this.form.spanText || !this.form.spanText.trim()) {
+        this.$message.warning('请输入敏感词')
+        return
+      }
+      addReviewSpan(this.form).then(() => {
+        this.$message.success('补充成功')
+        this.dialogVisible = false
+        this.reloadContent()
+      }).catch(() => {})
     },
     confirmSpan(id) {
       confirmReviewSpan(id).then(() => {
@@ -270,108 +383,14 @@ export default {
         this.reloadContent()
       })
     },
-    toggleAddMode() {
-      this.addMode = !this.addMode
-      this.adjustId = null
-    },
-    startAdjust(span) {
-      this.addMode = false
-      this.adjustId = span.id
-      this.$message.info('请在文档中重新划选范围')
-    },
-    cancelAdjust() {
-      this.adjustId = null
-    },
-    onDocMouseUp() {
-      if (!this.addMode && !this.adjustId) {
-        return
-      }
-      this.$nextTick(() => {
-        const selection = window.getSelection()
-        if (!selection || selection.isCollapsed) {
-          return
-        }
-        const range = selection.getRangeAt(0)
-        const blockEl = this.findBlockElement(range.startContainer)
-        const endBlockEl = this.findBlockElement(range.endContainer)
-        if (!blockEl || blockEl !== endBlockEl) {
-          return
-        }
-        const start = this.textOffset(blockEl, range.startContainer, range.startOffset)
-        const end = this.textOffset(blockEl, range.endContainer, range.endOffset)
-        const text = selection.toString()
-        if (!text) {
-          return
-        }
-        const blockId = Number(blockEl.getAttribute('data-block'))
-        if (this.adjustId) {
-          const old = this.content.spans.find(s => s.id === this.adjustId)
-          if (old) {
-            this.form = {
-              id: old.id,
-              docId: this.content.doc.id,
-              blockId: blockId,
-              startChar: start,
-              endChar: end,
-              spanText: text,
-              spanType: old.spanType
-            }
-            this.dialogTitle = '调整范围'
-          }
-        } else {
-          this.form = {
-            docId: this.content.doc.id,
-            blockId: blockId,
-            startChar: start,
-            endChar: end,
-            spanText: text,
-            spanType: '人名'
-          }
-          this.dialogTitle = '手动补充'
-        }
-        selection.removeAllRanges()
-        this.dialogVisible = true
-      })
-    },
-    findBlockElement(node) {
-      let el = node.nodeType === 3 ? node.parentElement : node
-      while (el && el !== document.body) {
-        if (el.getAttribute && el.getAttribute('data-block') !== null) {
-          return el
-        }
-        el = el.parentElement
-      }
-      return null
-    },
-    textOffset(blockEl, container, offset) {
-      const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT)
-      let count = 0
-      let node
-      while ((node = walker.nextNode())) {
-        if (node === container) {
-          return count + offset
-        }
-        count += (node.nodeValue || '').length
-      }
-      return count
-    },
-    submitSpan() {
-      const action = this.form.id ? updateReviewSpan(this.form) : addReviewSpan(this.form)
-      action.then(() => {
-        this.$message.success('保存成功')
-        this.dialogVisible = false
-        this.reloadContent()
-      })
-    },
-    applyDoc() {
-      this.$confirm('将按所有“已确认”记录替换敏感内容，并生成 _masked.docx 文件，是否继续？', '执行脱敏', {
+    completeDoc() {
+      this.$confirm('审核完成后文档状态将变为“审核完成”，确认没有遗漏的待确认记录？', '审核完成', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
       }).then(() => {
-        applyReviewDoc(this.content.doc.id).then(res => {
-          this.$message.success(res.msg || '处理成功')
-          this.$alert(res.data || '处理完成', '结果', { confirmButtonText: '确定' })
+        completeReviewDoc(this.content.doc.id).then(res => {
+          this.$message.success(res.msg || '审核完成')
           this.reloadContent()
         })
       }).catch(() => {})
@@ -404,9 +423,6 @@ export default {
   font-size: 12px;
   color: #666;
 }
-.tip-text {
-  color: #e6a23c;
-}
 .review-body {
   display: flex;
   gap: 12px;
@@ -431,9 +447,33 @@ export default {
 .hl-pending {
   background: #f7d674;
   cursor: pointer;
+  position: relative;
 }
 .hl-confirmed {
   background: #b3e19d;
+  position: relative;
+}
+.search-hit {
+  outline: 2px dashed #409eff;
+  background: rgba(64, 158, 255, 0.15);
+}
+.hl-pending.flash,
+.hl-confirmed.flash {
+  outline: 2px solid #409eff;
+}
+.hl-badge {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #409eff;
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 16px;
+  text-align: center;
 }
 .doc-table {
   border-collapse: collapse;
@@ -460,9 +500,31 @@ export default {
   padding: 8px;
   margin-bottom: 8px;
   background: #fafafa;
+  cursor: pointer;
+}
+.span-item.active {
+  border-color: #409eff;
+  background: #ecf5ff;
 }
 .span-text {
   margin-bottom: 4px;
+}
+.side-badge {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #909399;
+  color: #fff;
+  font-size: 11px;
+  font-style: normal;
+  line-height: 18px;
+  text-align: center;
+  margin-right: 6px;
+}
+.span-word {
+  font-weight: 600;
+  margin-right: 6px;
 }
 .span-status {
   color: #888;
@@ -472,8 +534,5 @@ export default {
 .span-actions {
   display: flex;
   gap: 4px;
-}
-.dialog-text {
-  word-break: break-all;
 }
 </style>
