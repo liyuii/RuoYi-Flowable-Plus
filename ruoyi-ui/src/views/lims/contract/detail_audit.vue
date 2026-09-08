@@ -64,7 +64,7 @@ export default {
   },
   methods: {
     handlePreview(f) {
-      var fileUrl = btoa('http://127.0.0.1:8080' + f.ossUrl);
+      var fileUrl = btoa('http://127.0.0.1:8082' + f.ossUrl);
       window.open('http://127.0.0.1:8012/onlinePreview?url=' + fileUrl, '_blank');
     },
    handleDownload(f) {
