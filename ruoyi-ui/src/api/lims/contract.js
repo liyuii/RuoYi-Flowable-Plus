@@ -5,3 +5,4 @@ export function addContract(data) { return request({ url: '/lims/contract', meth
 export function updateContract(data) { return request({ url: '/lims/contract', method: 'put', data: data }) }
 export function delContract(ids) { return request({ url: '/lims/contract/' + ids, method: 'delete' }) }
 export function submitContract(data) { return request({ url: '/lims/contract/submit', method: 'post', data: data }) }
+export function getContractStatistics() { return request({ url: '/lims/contract/statistics', method: 'get' }) }

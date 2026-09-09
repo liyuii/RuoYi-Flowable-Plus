@@ -8,6 +8,7 @@ import com.ruoyi.lims.domain.ContractApprove;
 import com.ruoyi.lims.mapper.ContractApproveMapper;
 import com.ruoyi.common.helper.LoginHelper;
 import com.ruoyi.lims.service.IContractApproveService;
+import com.ruoyi.lims.vo.ContractStatisticsVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.Collection;
@@ -37,7 +38,21 @@ public class ContractApproveServiceImpl implements IContractApproveService {
         return lqw;
     }
     @Override public ContractApprove queryById(Long id) { return baseMapper.selectById(id); }
-    @Override public Boolean insert(ContractApprove bo) { return baseMapper.insert(bo) > 0; }
+    @Override public Boolean insert(ContractApprove bo) {
+        bo.setUserId(LoginHelper.getUserId());
+        bo.setDeptId(LoginHelper.getDeptId());
+        return baseMapper.insert(bo) > 0;
+    }
     @Override public Boolean update(ContractApprove bo) { return baseMapper.updateById(bo) > 0; }
     @Override public Boolean deleteWithValidByIds(Collection<Long> ids) { return baseMapper.deleteBatchIds(ids) > 0; }
+
+    @Override
+    public ContractStatisticsVO getStatistics() {
+        ContractStatisticsVO vo = new ContractStatisticsVO();
+        vo.setSummary(baseMapper.selectContractSummary());
+        vo.setStatusList(baseMapper.selectContractStatusStat());
+        vo.setTypeList(baseMapper.selectContractTypeStat());
+        vo.setMonthlyList(baseMapper.selectContractMonthlyStat());
+        return vo;
+    }
 }

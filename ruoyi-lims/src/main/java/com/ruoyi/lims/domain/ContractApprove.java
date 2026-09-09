@@ -25,6 +25,14 @@ public class ContractApprove extends BaseEntity {
     private String partyB;
     private BigDecimal amount;
     private String currency;
+    /**
+     * 创建人部门ID
+     */
+    private Long deptId;
+    /**
+     * 创建人用户ID
+     */
+    private Long userId;
     private String content;
     @JsonFormat(pattern = "yyyy-MM-dd")
     private Date startDate;

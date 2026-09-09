@@ -1,4 +1,46 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.ruoyi.lims.mapper.ContractApproveMapper">
+
+    <select id="selectContractSummary" resultType="com.ruoyi.lims.vo.ContractSummaryVO">
+        SELECT
+            COUNT(*) AS total_count,
+            IFNULL(SUM(amount), 0) AS total_amount,
+            SUM(CASE WHEN status = '9' THEN 1 ELSE 0 END) AS approved_count,
+            IFNULL(SUM(CASE WHEN status = '9' THEN amount ELSE 0 END), 0) AS approved_amount
+        FROM contract_approve
+        WHERE del_flag = '0'
+    </select>
+
+    <select id="selectContractStatusStat" resultType="com.ruoyi.lims.vo.ContractStatusStatVO">
+        SELECT status, COUNT(*) AS count
+        FROM contract_approve
+        WHERE del_flag = '0'
+        GROUP BY status
+        ORDER BY status
+    </select>
+
+    <select id="selectContractTypeStat" resultType="com.ruoyi.lims.vo.ContractTypeStatVO">
+        SELECT
+            contract_type,
+            COUNT(*) AS count,
+            IFNULL(SUM(amount), 0) AS amount
+        FROM contract_approve
+        WHERE del_flag = '0'
+        GROUP BY contract_type
+        ORDER BY contract_type
+    </select>
+
+    <select id="selectContractMonthlyStat" resultType="com.ruoyi.lims.vo.ContractMonthlyStatVO">
+        SELECT
+            DATE_FORMAT(create_time, '%Y-%m') AS month,
+            COUNT(*) AS count,
+            IFNULL(SUM(amount), 0) AS amount
+        FROM contract_approve
+        WHERE del_flag = '0'
+          AND create_time >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
+        GROUP BY DATE_FORMAT(create_time, '%Y-%m')
+        ORDER BY month
+    </select>
+
 </mapper>

@@ -6,7 +6,7 @@
       <el-form-item label="状态" prop="status">
         <el-select v-model="queryParams.status" placeholder="请选择" clearable style="width:120px">
           <el-option label="草稿" value="0" /><el-option label="审批中" value="1" /><el-option label="已通过"
-            value="2" /><el-option label="已驳回" value="3" />
+            value="9" /><el-option label="已驳回" value="3" />
         </el-select>
       </el-form-item>
       <el-form-item><el-button type="primary" icon="el-icon-search" @click="handleQuery">搜索</el-button><el-button

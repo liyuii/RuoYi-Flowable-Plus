@@ -12,6 +12,7 @@ import com.ruoyi.flowable.factory.FlowServiceFactory;
 import com.ruoyi.lims.domain.ContractApprove;
 import com.ruoyi.lims.service.IContractApproveService;
 import com.ruoyi.lims.vo.ContractNotificationMessage;
+import com.ruoyi.lims.vo.ContractStatisticsVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.flowable.engine.RuntimeService;
@@ -36,7 +37,7 @@ public class ContractController extends BaseController {
     private final FlowServiceFactory flowServiceFactory;
     private final RabbitTemplate rabbitTemplate;
 
-    @GetMapping("/list")
+   @GetMapping("/list")
    public TableDataInfo<ContractApprove> list(ContractApprove bo, PageQuery pageQuery) {
         TableDataInfo<ContractApprove> page = contractService.queryPageList(bo, pageQuery);
         HistoryService historyService = flowServiceFactory.getHistoryService();
@@ -52,6 +53,11 @@ public class ContractController extends BaseController {
         }
         return page;
    }
+
+    @GetMapping("/statistics")
+    public R<ContractStatisticsVO> statistics() {
+        return R.ok(contractService.getStatistics());
+    }
 
     @GetMapping("/{id}")
     public R<ContractApprove> getInfo(@PathVariable Long id) {
