@@ -140,6 +140,8 @@
             <el-dropdown-menu slot="dropdown">
               <el-dropdown-item command="handleDataScope" icon="el-icon-circle-check"
                 v-hasPermi="['system:role:edit']">数据权限</el-dropdown-item>
+              <el-dropdown-item command="handleFunctionDataScope" icon="el-icon-s-operation"
+                v-hasPermi="['system:role:edit']">功能范围</el-dropdown-item>
               <el-dropdown-item command="handleAuthUser" icon="el-icon-user"
                 v-hasPermi="['system:role:edit']">分配用户</el-dropdown-item>
             </el-dropdown-menu>
@@ -249,15 +251,19 @@
         <el-button @click="cancelDataScope">取 消</el-button>
       </div>
     </el-dialog>
+
+    <function-data-scope ref="functionDataScope" />
   </div>
 </template>
 
 <script>
 import { listRole, getRole, delRole, addRole, updateRole, dataScope, changeRoleStatus, deptTreeSelect } from "@/api/system/role";
 import { treeselect as menuTreeselect, roleMenuTreeselect } from "@/api/system/menu";
+import FunctionDataScope from "./components/FunctionDataScope";
 
 export default {
   name: "Role",
+  components: { FunctionDataScope },
   dicts: ['sys_normal_disable'],
   data() {
     return {
@@ -461,6 +467,9 @@ export default {
         case "handleDataScope":
           this.handleDataScope(row);
           break;
+        case "handleFunctionDataScope":
+          this.handleFunctionDataScope(row);
+          break;
         case "handleAuthUser":
           this.handleAuthUser(row);
           break;
@@ -546,6 +555,10 @@ export default {
         });
         this.title = "分配数据权限";
       });
+    },
+    /** 分配功能数据范围操作 */
+    handleFunctionDataScope(row) {
+      this.$refs.functionDataScope.open(row);
     },
     /** 分配用户操作 */
     handleAuthUser: function(row) {

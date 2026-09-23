@@ -44,6 +44,23 @@ export function dataScope(data) {
   })
 }
 
+// 查询角色功能级数据范围配置
+export function getRoleDataScopeRules(roleId) {
+  return request({
+    url: '/system/role/dataScopeRules/' + roleId,
+    method: 'get'
+  })
+}
+
+// 保存角色功能级数据范围
+export function saveRoleDataScopeRules(data) {
+  return request({
+    url: '/system/role/dataScopeRules',
+    method: 'put',
+    data: data
+  })
+}
+
 // 角色状态修改
 export function changeRoleStatus(roleId, status) {
   const data = {

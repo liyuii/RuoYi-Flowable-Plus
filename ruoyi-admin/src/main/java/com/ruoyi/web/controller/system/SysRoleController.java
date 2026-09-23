@@ -12,6 +12,8 @@ import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.common.utils.poi.ExcelUtil;
 import com.ruoyi.system.domain.SysUserRole;
+import com.ruoyi.system.domain.bo.SysRoleDataScopeBo;
+import com.ruoyi.system.domain.vo.SysRoleDataScopeConfigVo;
 import com.ruoyi.system.service.ISysDeptService;
 import com.ruoyi.system.service.ISysRoleService;
 import com.ruoyi.system.service.ISysUserService;
@@ -121,6 +123,31 @@ public class SysRoleController extends BaseController {
         roleService.checkRoleAllowed(role);
         roleService.checkRoleDataScope(role.getRoleId());
         return toAjax(roleService.authDataScope(role));
+    }
+
+    /**
+     * 查询角色功能级数据范围配置
+     */
+    @SaCheckPermission("system:role:edit")
+    @GetMapping("/dataScopeRules/{roleId}")
+    public R<SysRoleDataScopeConfigVo> dataScopeRules(@PathVariable Long roleId) {
+        SysRole role = roleService.selectRoleById(roleId);
+        roleService.checkRoleAllowed(role);
+        roleService.checkRoleDataScope(roleId);
+        return R.ok(roleService.getRoleDataScopeConfig(roleId));
+    }
+
+    /**
+     * 保存角色功能级数据范围
+     */
+    @SaCheckPermission("system:role:edit")
+    @Log(title = "角色管理", businessType = BusinessType.UPDATE)
+    @PutMapping("/dataScopeRules")
+    public R<Void> saveDataScopeRules(@Validated @RequestBody SysRoleDataScopeBo bo) {
+        SysRole role = roleService.selectRoleById(bo.getRoleId());
+        roleService.checkRoleAllowed(role);
+        roleService.checkRoleDataScope(bo.getRoleId());
+        return toAjax(roleService.saveRoleDataScopes(bo));
     }
 
     /**

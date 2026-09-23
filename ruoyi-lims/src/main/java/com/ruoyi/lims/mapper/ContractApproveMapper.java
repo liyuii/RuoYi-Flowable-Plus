@@ -13,25 +13,25 @@ import java.util.List;
 
 public interface ContractApproveMapper extends BaseMapper<ContractApprove> {
 
-    @DataPermission({
+    @DataPermission(scopeKey = "contract:statistics", value = {
         @DataColumn(key = "deptName", value = "dept_id"),
         @DataColumn(key = "userName", value = "user_id")
     })
     ContractSummaryVO selectContractSummary();
 
-    @DataPermission({
+    @DataPermission(scopeKey = "contract:statistics", value = {
         @DataColumn(key = "deptName", value = "dept_id"),
         @DataColumn(key = "userName", value = "user_id")
     })
     List<ContractStatusStatVO> selectContractStatusStat();
 
-    @DataPermission({
+    @DataPermission(scopeKey = "contract:statistics", value = {
         @DataColumn(key = "deptName", value = "dept_id"),
         @DataColumn(key = "userName", value = "user_id")
     })
     List<ContractTypeStatVO> selectContractTypeStat();
 
-    @DataPermission({
+    @DataPermission(scopeKey = "contract:statistics", value = {
         @DataColumn(key = "deptName", value = "dept_id"),
         @DataColumn(key = "userName", value = "user_id")
     })

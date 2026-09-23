@@ -14,14 +14,24 @@ import com.ruoyi.common.core.domain.PageQuery;
 import com.ruoyi.common.core.domain.entity.SysRole;
 import com.ruoyi.common.core.domain.model.LoginUser;
 import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.enums.DataScopeType;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.helper.LoginHelper;
 import com.ruoyi.common.utils.StreamUtils;
 import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.system.domain.SysDataScopeDefine;
 import com.ruoyi.system.domain.SysRoleDept;
 import com.ruoyi.system.domain.SysRoleMenu;
+import com.ruoyi.system.domain.SysRoleDataScope;
+import com.ruoyi.system.domain.SysRoleDataScopeDept;
 import com.ruoyi.system.domain.SysUserRole;
+import com.ruoyi.system.domain.bo.SysDataScopeRuleDto;
+import com.ruoyi.system.domain.bo.SysRoleDataScopeBo;
+import com.ruoyi.system.domain.vo.SysRoleDataScopeConfigVo;
+import com.ruoyi.system.mapper.SysDataScopeDefineMapper;
 import com.ruoyi.system.mapper.SysRoleDeptMapper;
+import com.ruoyi.system.mapper.SysRoleDataScopeDeptMapper;
+import com.ruoyi.system.mapper.SysRoleDataScopeMapper;
 import com.ruoyi.system.mapper.SysRoleMapper;
 import com.ruoyi.system.mapper.SysRoleMenuMapper;
 import com.ruoyi.system.mapper.SysUserRoleMapper;
@@ -45,6 +55,9 @@ public class SysRoleServiceImpl implements ISysRoleService {
     private final SysRoleMenuMapper roleMenuMapper;
     private final SysUserRoleMapper userRoleMapper;
     private final SysRoleDeptMapper roleDeptMapper;
+    private final SysDataScopeDefineMapper dataScopeDefineMapper;
+    private final SysRoleDataScopeMapper roleDataScopeMapper;
+    private final SysRoleDataScopeDeptMapper roleDataScopeDeptMapper;
 
     @Override
     public TableDataInfo<SysRole> selectPageRoleList(SysRole role, PageQuery pageQuery) {
@@ -274,6 +287,115 @@ public class SysRoleServiceImpl implements ISysRoleService {
         return insertRoleDept(role);
     }
 
+    @Override
+    public SysRoleDataScopeConfigVo getRoleDataScopeConfig(Long roleId) {
+        SysRole role = baseMapper.selectById(roleId);
+        if (ObjectUtil.isNull(role)) {
+            throw new ServiceException("角色不存在");
+        }
+        List<SysDataScopeDefine> defines = dataScopeDefineMapper.selectList(
+            Wrappers.<SysDataScopeDefine>lambdaQuery().eq(SysDataScopeDefine::getStatus, "0"));
+        Map<String, SysDataScopeDefine> defineMap = StreamUtils.toIdentityMap(defines, SysDataScopeDefine::getScopeKey);
+
+        List<SysRoleDataScope> scopes = roleDataScopeMapper.selectList(
+            Wrappers.<SysRoleDataScope>lambdaQuery().eq(SysRoleDataScope::getRoleId, roleId));
+        List<SysDataScopeRuleDto> configuredRules = new ArrayList<>();
+        if (CollUtil.isNotEmpty(scopes)) {
+            List<Long> scopeIds = StreamUtils.toList(scopes, SysRoleDataScope::getId);
+            Map<Long, List<Long>> deptMap = selectCustomDeptMap(scopeIds);
+            for (SysRoleDataScope scope : scopes) {
+                SysDataScopeRuleDto ruleDto = new SysDataScopeRuleDto();
+                ruleDto.setScopeKey(scope.getScopeKey());
+                ruleDto.setScopeName(defineMap.get(scope.getScopeKey()) == null
+                    ? scope.getScopeKey() : defineMap.get(scope.getScopeKey()).getScopeName());
+                ruleDto.setDataScope(scope.getDataScope());
+                ruleDto.setDeptIds(deptMap.getOrDefault(scope.getId(), new ArrayList<>()));
+                configuredRules.add(ruleDto);
+            }
+        }
+
+        Set<String> configuredKeys = StreamUtils.toSet(configuredRules, SysDataScopeRuleDto::getScopeKey);
+        List<SysDataScopeDefine> candidates = StreamUtils.filter(defines,
+            define -> !configuredKeys.contains(define.getScopeKey()));
+
+        SysRoleDataScopeConfigVo vo = new SysRoleDataScopeConfigVo();
+        vo.setRoleId(roleId);
+        vo.setRoleName(role.getRoleName());
+        vo.setConfiguredRules(configuredRules);
+        vo.setCandidateScopes(candidates);
+        return vo;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int saveRoleDataScopes(SysRoleDataScopeBo bo) {
+        if (ObjectUtil.isNull(bo.getRoleId())) {
+            throw new ServiceException("角色ID不能为空");
+        }
+        deleteRoleDataScopes(bo.getRoleId());
+        List<SysDataScopeRuleDto> rules = bo.getRules() == null ? new ArrayList<>() : bo.getRules();
+        for (SysDataScopeRuleDto rule : rules) {
+            if (StringUtils.isBlank(rule.getScopeKey()) || StringUtils.isBlank(rule.getDataScope())) {
+                continue;
+            }
+            if (ObjectUtil.isNull(DataScopeType.findCode(rule.getDataScope()))) {
+                throw new ServiceException("数据范围类型异常 => " + rule.getDataScope());
+            }
+            Date now = new Date();
+            String username = LoginHelper.getUsername();
+            SysRoleDataScope roleDataScope = new SysRoleDataScope();
+            roleDataScope.setRoleId(bo.getRoleId());
+            roleDataScope.setScopeKey(rule.getScopeKey());
+            roleDataScope.setDataScope(rule.getDataScope());
+            roleDataScope.setCreateBy(username);
+            roleDataScope.setCreateTime(now);
+            roleDataScope.setUpdateBy(username);
+            roleDataScope.setUpdateTime(now);
+            roleDataScopeMapper.insert(roleDataScope);
+
+            if (DataScopeType.CUSTOM.getCode().equals(rule.getDataScope())) {
+                List<Long> deptIds = rule.getDeptIds() == null ? new ArrayList<>() : rule.getDeptIds();
+                if (CollUtil.isEmpty(deptIds)) {
+                    throw new ServiceException("自定义数据范围必须选择部门");
+                }
+                for (Long deptId : deptIds) {
+                    SysRoleDataScopeDept dept = new SysRoleDataScopeDept();
+                    dept.setScopeId(roleDataScope.getId());
+                    dept.setDeptId(deptId);
+                    dept.setCreateTime(now);
+                    roleDataScopeDeptMapper.insert(dept);
+                }
+            }
+        }
+        return 1;
+    }
+
+    private Map<Long, List<Long>> selectCustomDeptMap(List<Long> scopeIds) {
+        Map<Long, List<Long>> map = new HashMap<>();
+        if (CollUtil.isEmpty(scopeIds)) {
+            return map;
+        }
+        List<SysRoleDataScopeDept> depts = roleDataScopeDeptMapper.selectList(
+            Wrappers.<SysRoleDataScopeDept>lambdaQuery().in(SysRoleDataScopeDept::getScopeId, scopeIds));
+        for (SysRoleDataScopeDept dept : depts) {
+            map.computeIfAbsent(dept.getScopeId(), key -> new ArrayList<>()).add(dept.getDeptId());
+        }
+        return map;
+    }
+
+    private void deleteRoleDataScopes(Long roleId) {
+        List<SysRoleDataScope> scopes = roleDataScopeMapper.selectList(
+            Wrappers.<SysRoleDataScope>lambdaQuery().eq(SysRoleDataScope::getRoleId, roleId));
+        if (CollUtil.isEmpty(scopes)) {
+            return;
+        }
+        List<Long> scopeIds = StreamUtils.toList(scopes, SysRoleDataScope::getId);
+        roleDataScopeDeptMapper.delete(Wrappers.<SysRoleDataScopeDept>lambdaQuery()
+            .in(SysRoleDataScopeDept::getScopeId, scopeIds));
+        roleDataScopeMapper.delete(Wrappers.<SysRoleDataScope>lambdaQuery()
+            .eq(SysRoleDataScope::getRoleId, roleId));
+    }
+
     /**
      * 新增角色菜单信息
      *
@@ -329,6 +451,7 @@ public class SysRoleServiceImpl implements ISysRoleService {
         roleMenuMapper.delete(new LambdaQueryWrapper<SysRoleMenu>().eq(SysRoleMenu::getRoleId, roleId));
         // 删除角色与部门关联
         roleDeptMapper.delete(new LambdaQueryWrapper<SysRoleDept>().eq(SysRoleDept::getRoleId, roleId));
+        deleteRoleDataScopes(roleId);
         return baseMapper.deleteById(roleId);
     }
 
@@ -354,6 +477,15 @@ public class SysRoleServiceImpl implements ISysRoleService {
         roleMenuMapper.delete(new LambdaQueryWrapper<SysRoleMenu>().in(SysRoleMenu::getRoleId, ids));
         // 删除角色与部门关联
         roleDeptMapper.delete(new LambdaQueryWrapper<SysRoleDept>().in(SysRoleDept::getRoleId, ids));
+        List<SysRoleDataScope> scopes = roleDataScopeMapper.selectList(
+            Wrappers.<SysRoleDataScope>lambdaQuery().in(SysRoleDataScope::getRoleId, ids));
+        if (CollUtil.isNotEmpty(scopes)) {
+            List<Long> scopeIds = StreamUtils.toList(scopes, SysRoleDataScope::getId);
+            roleDataScopeDeptMapper.delete(Wrappers.<SysRoleDataScopeDept>lambdaQuery()
+                .in(SysRoleDataScopeDept::getScopeId, scopeIds));
+            roleDataScopeMapper.delete(Wrappers.<SysRoleDataScope>lambdaQuery()
+                .in(SysRoleDataScope::getRoleId, ids));
+        }
         return baseMapper.deleteBatchIds(ids);
     }
 

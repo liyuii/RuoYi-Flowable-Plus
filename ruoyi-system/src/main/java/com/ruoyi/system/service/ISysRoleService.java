@@ -4,6 +4,8 @@ import com.ruoyi.common.core.domain.PageQuery;
 import com.ruoyi.common.core.domain.entity.SysRole;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.system.domain.SysUserRole;
+import com.ruoyi.system.domain.bo.SysRoleDataScopeBo;
+import com.ruoyi.system.domain.vo.SysRoleDataScopeConfigVo;
 
 import java.util.List;
 import java.util.Set;
@@ -134,6 +136,22 @@ public interface ISysRoleService {
      * @return 结果
      */
     int authDataScope(SysRole role);
+
+    /**
+     * 查询角色功能级数据范围配置
+     *
+     * @param roleId 角色ID
+     * @return 配置结果
+     */
+    SysRoleDataScopeConfigVo getRoleDataScopeConfig(Long roleId);
+
+    /**
+     * 保存角色功能级数据范围
+     *
+     * @param bo 功能范围配置
+     * @return 结果
+     */
+    int saveRoleDataScopes(SysRoleDataScopeBo bo);
 
     /**
      * 通过角色ID删除角色

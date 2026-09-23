@@ -17,14 +17,18 @@ ruoyi:
   cacheLazy: false
   # 文件上传路径
   profile: D:/GitHubItem/RuoYi-Flowable-Plus/upload
+  # 文件管理大文件上传演示配置
+  upload-demo:
+    storage-path: D:/GitHubItem/RuoYi-Flowable-Plus/upload-demo
+    chunk-size: 5242880
 
 # OnlyOffice 在线编辑配置
 onlyoffice:
   # OnlyOffice Document Server 地址
-  doc-server-url: http://192.168.137.1:8088
+  doc-server-url: http://127.0.0.1:8088
   # 应用自身地址，用于构造 OnlyOffice 容器能访问到的回调/下载 URL
   # 可用 host.docker.internal 代替 localhost
-  app-url: http://192.168.137.1:8082
+  app-url: http://127.0.0.1:8082
   # JWT 密钥，必须与 docker run 时的 JWT_SECRET 一致
   jwt-secret: my_secret_key_2026
 
@@ -63,11 +67,11 @@ server:
       worker: 256
 
 # 日志配置
-logging:
-  level:
-    com.ruoyi: @logging.level@
-    org.springframework: warn
-  config: classpath:logback-plus.xml
+#logging:
+#  level:
+#    com.ruoyi: @logging.level@
+#    org.springframework: warn
+#  config: classpath:logback-plus.xml
 
 # 用户配置
 user:
@@ -86,7 +90,7 @@ spring:
     # 国际化资源文件路径
     basename: i18n/messages
   profiles:
-    active: @profiles.active@
+    active: dev
   # 文件上传
   servlet:
     multipart:
@@ -116,8 +120,8 @@ spring:
   rabbitmq:
     host: 127.0.0.1
     port: 5672
-    username: guest
-    password: guest
+    username: admin
+    password: admin
     listener:
       simple:
         retry:
@@ -309,7 +313,7 @@ flowable:
   # 关闭定时任务 job
   async-executor-activate: false
   # 库与数据库表结构不一致时，会自动将数据库表结构升级至新版本。
-  database-schema-update: true
+  database-schema-update: false
   idm:
     # 关闭idm引擎 数据库不会创建act_id_*表，流程流转不会使用act_id_*相关的表
     enabled: false

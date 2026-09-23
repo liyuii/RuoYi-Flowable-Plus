@@ -8,12 +8,14 @@ import cn.hutool.core.util.ClassUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.ruoyi.common.annotation.DataColumn;
 import com.ruoyi.common.annotation.DataPermission;
+import com.ruoyi.common.core.domain.dto.DataScopeRule;
 import com.ruoyi.common.core.domain.dto.RoleDTO;
 import com.ruoyi.common.core.domain.model.LoginUser;
 import com.ruoyi.common.enums.DataScopeType;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.helper.DataPermissionHelper;
 import com.ruoyi.common.helper.LoginHelper;
+import com.ruoyi.common.service.IDataScopeRuleLoader;
 import com.ruoyi.common.utils.StreamUtils;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.common.utils.spring.SpringUtils;
@@ -32,7 +34,12 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 
 import java.lang.reflect.Method;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -68,8 +75,8 @@ public class PlusDataPermissionHandler {
 
 
     public Expression getSqlSegment(Expression where, String mappedStatementId, boolean isSelect) {
-        DataColumn[] dataColumns = findAnnotation(mappedStatementId);
-        if (ArrayUtil.isEmpty(dataColumns)) {
+        DataPermission dataPermission = findAnnotation(mappedStatementId);
+        if (ObjectUtil.isNull(dataPermission)) {
             invalidCacheSet.add(mappedStatementId);
             return where;
         }
@@ -82,7 +89,13 @@ public class PlusDataPermissionHandler {
         if (LoginHelper.isAdmin()) {
             return where;
         }
-        String dataFilterSql = buildDataFilter(dataColumns, isSelect);
+        String dataFilterSql;
+        DataColumn[] dataColumns = dataPermission.value();
+        if (StringUtils.isNotBlank(dataPermission.scopeKey())) {
+            dataFilterSql = buildScopeDataFilter(dataPermission.scopeKey(), dataColumns, currentUser, isSelect);
+        } else {
+            dataFilterSql = buildDataFilter(dataColumns, currentUser, isSelect);
+        }
         if (StringUtils.isBlank(dataFilterSql)) {
             return where;
         }
@@ -101,12 +114,80 @@ public class PlusDataPermissionHandler {
     }
 
     /**
+     * 功能级数据范围过滤
+     */
+    private String buildScopeDataFilter(String scopeKey, DataColumn[] dataColumns,
+                                        LoginUser user, boolean isSelect) {
+        IDataScopeRuleLoader loader = SpringUtils.getBean(IDataScopeRuleLoader.class);
+        List<DataScopeRule> rules = loader.loadRules(scopeKey, user.getRoles(), user.getDeptId());
+        if (CollUtil.isEmpty(rules)) {
+            return " 1 = 0 ";
+        }
+        boolean hasAll = rules.stream()
+            .anyMatch(rule -> DataScopeType.ALL.getCode().equals(rule.getDataScope()));
+        if (hasAll) {
+            return "";
+        }
+        String joinStr = isSelect ? " OR " : " AND ";
+        Set<String> conditions = new HashSet<>();
+        for (DataScopeRule rule : rules) {
+            String sql = buildScopeRuleSql(rule, dataColumns, user);
+            if (StringUtils.isNotBlank(sql)) {
+                conditions.add(joinStr + sql);
+            }
+        }
+        if (CollUtil.isEmpty(conditions)) {
+            return " 1 = 0 ";
+        }
+        String sql = StreamUtils.join(conditions, Function.identity(), "");
+        return sql.substring(joinStr.length());
+    }
+
+    private String buildScopeRuleSql(DataScopeRule rule, DataColumn[] dataColumns, LoginUser user) {
+        String type = rule.getDataScope();
+        if (DataScopeType.SELF.getCode().equals(type)) {
+            String column = findColumn(dataColumns, "userName");
+            if (StringUtils.isBlank(column) || ObjectUtil.isNull(user.getUserId())) {
+                return null;
+            }
+            return column + " = " + user.getUserId();
+        }
+        if (DataScopeType.ALL.getCode().equals(type)) {
+            return null;
+        }
+        List<Long> deptIds = rule.getDeptIds() == null ? new ArrayList<>() : rule.getDeptIds();
+        if (CollUtil.isEmpty(deptIds)) {
+            return null;
+        }
+        String column = findColumn(dataColumns, "deptName");
+        if (StringUtils.isBlank(column)) {
+            return null;
+        }
+        return column + " IN (" + StreamUtils.join(deptIds, String::valueOf) + ")";
+    }
+
+    private String findColumn(DataColumn[] dataColumns, String key) {
+        if (ArrayUtil.isEmpty(dataColumns)) {
+            return null;
+        }
+        for (DataColumn dataColumn : dataColumns) {
+            String[] keys = dataColumn.key();
+            String[] values = dataColumn.value();
+            for (int i = 0; i < keys.length; i++) {
+                if (key.equals(keys[i]) && i < values.length) {
+                    return values[i];
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * 构造数据过滤sql
      */
-    private String buildDataFilter(DataColumn[] dataColumns, boolean isSelect) {
+    private String buildDataFilter(DataColumn[] dataColumns, LoginUser user, boolean isSelect) {
         // 更新或删除需满足所有条件
         String joinStr = isSelect ? " OR " : " AND ";
-        LoginUser user = DataPermissionHelper.getVariable("user");
         StandardEvaluationContext context = new StandardEvaluationContext();
         context.setBeanResolver(beanResolver);
         DataPermissionHelper.getContext().forEach(context::setVariable);
@@ -156,7 +237,7 @@ public class PlusDataPermissionHandler {
         return "";
     }
 
-    private DataColumn[] findAnnotation(String mappedStatementId) {
+    private DataPermission findAnnotation(String mappedStatementId) {
         StringBuilder sb = new StringBuilder(mappedStatementId);
         int index = sb.lastIndexOf(".");
         String clazzName = sb.substring(0, index);
@@ -169,23 +250,23 @@ public class PlusDataPermissionHandler {
         for (Method method : methods) {
             dataPermission = dataPermissionCacheMap.get(mappedStatementId);
             if (ObjectUtil.isNotNull(dataPermission)) {
-                return dataPermission.value();
+                return dataPermission;
             }
             if (AnnotationUtil.hasAnnotation(method, DataPermission.class)) {
                 dataPermission = AnnotationUtil.getAnnotation(method, DataPermission.class);
                 dataPermissionCacheMap.put(mappedStatementId, dataPermission);
-                return dataPermission.value();
+                return dataPermission;
             }
         }
         dataPermission = dataPermissionCacheMap.get(clazz.getName());
         if (ObjectUtil.isNotNull(dataPermission)) {
-            return dataPermission.value();
+            return dataPermission;
         }
         // 获取类注解
         if (AnnotationUtil.hasAnnotation(clazz, DataPermission.class)) {
             dataPermission = AnnotationUtil.getAnnotation(clazz, DataPermission.class);
             dataPermissionCacheMap.put(clazz.getName(), dataPermission);
-            return dataPermission.value();
+            return dataPermission;
         }
         return null;
     }
