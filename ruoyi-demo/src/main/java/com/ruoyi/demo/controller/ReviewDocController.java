@@ -8,6 +8,7 @@ import com.ruoyi.demo.domain.ReviewSpan;
 import com.ruoyi.demo.domain.vo.ReviewContentVO;
 import com.ruoyi.demo.service.IReviewDocService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.servlet.http.HttpServletResponse;
 
 /**
  * 人工审核Controller
@@ -27,8 +30,47 @@ public class ReviewDocController {
     private final IReviewDocService reviewDocService;
 
     @GetMapping("/doc/list")
-    public TableDataInfo<ReviewDoc> list(PageQuery pageQuery) {
-        return reviewDocService.pageDocs(pageQuery);
+    public TableDataInfo<ReviewDoc> list(ReviewDoc query, PageQuery pageQuery) {
+        return reviewDocService.pageDocs(query, pageQuery);
+    }
+
+    @GetMapping("/doc/{docId}")
+    public R<ReviewDoc> getInfo(@PathVariable Long docId) {
+        return R.ok(reviewDocService.getDoc(docId));
+    }
+
+    @PostMapping("/doc")
+    public R<Void> add(@RequestBody ReviewDoc doc) {
+        reviewDocService.createDoc(doc);
+        return R.ok();
+    }
+
+    @PutMapping("/doc")
+    public R<Void> edit(@RequestBody ReviewDoc doc) {
+        reviewDocService.updateDoc(doc);
+        return R.ok();
+    }
+
+    @DeleteMapping("/doc/{docId}")
+    public R<Void> remove(@PathVariable Long docId) {
+        reviewDocService.deleteDoc(docId);
+        return R.ok();
+    }
+
+    /**
+     * 拆分章节：提取标题命中关键字的章节，生成本地截取文件
+     */
+    @PostMapping("/doc/{docId}/split")
+    public R<ReviewDoc> split(@PathVariable Long docId) {
+        return R.ok(reviewDocService.split(docId));
+    }
+
+    /**
+     * 下载截取文件
+     */
+    @GetMapping("/doc/{docId}/extract/download")
+    public void downloadExtract(@PathVariable Long docId, HttpServletResponse response) {
+        reviewDocService.downloadExtract(docId, response);
     }
 
     @GetMapping("/doc/{docId}/content")

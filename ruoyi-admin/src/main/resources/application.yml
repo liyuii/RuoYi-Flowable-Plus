@@ -21,6 +21,12 @@ ruoyi:
   upload-demo:
     storage-path: D:/GitHubItem/RuoYi-Flowable-Plus/upload-demo
     chunk-size: 5242880
+  # 投标方案库配置
+  review:
+    # 章节拆分等中间产物的工作目录（本地保存，不会对外暴露，注意不要放在 profile 目录下）
+    work-dir: D:/GitHubItem/RuoYi-Flowable-Plus/review-work
+    # 章节命中关键词，多个用逗号分隔
+    split-keywords: 方案
 
 # OnlyOffice 在线编辑配置
 onlyoffice:

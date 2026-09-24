@@ -1,26 +1,80 @@
 <template>
   <div class="app-container">
-    <!-- 文档列表 -->
+    <!-- 投标文件列表 -->
     <template v-if="mode === 'list'">
+      <el-form :model="queryParams" :inline="true" size="small" class="query-form">
+        <el-form-item label="项目名称">
+          <el-input
+            v-model="queryParams.projectName"
+            placeholder="请输入项目名称"
+            clearable
+            style="width: 200px"
+            @keyup.enter.native="handleQuery"
+          />
+        </el-form-item>
+        <el-form-item label="省份">
+          <el-select v-model="queryParams.provinceCode" placeholder="请选择省份" clearable style="width: 160px">
+            <el-option v-for="p in provinceOptions" :key="p.code" :label="p.name" :value="p.code" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="流程状态">
+          <el-select v-model="queryParams.processStatus" placeholder="请选择" clearable style="width: 140px">
+            <el-option v-for="s in processStatusOptions" :key="s.value" :label="s.label" :value="s.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
+          <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
+
       <el-row :gutter="10" class="mb8">
         <el-col :span="1.5">
-          <el-button type="primary" plain icon="el-icon-refresh" size="mini" @click="getList">刷新</el-button>
+          <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd">新增投标文件</el-button>
+        </el-col>
+        <el-col :span="1.5">
+          <el-button type="success" plain icon="el-icon-refresh" size="mini" @click="getList">刷新</el-button>
         </el-col>
       </el-row>
 
       <el-table v-loading="loading" :data="docList">
-        <el-table-column label="ID" align="center" prop="id" width="80" />
-        <el-table-column label="文档名称" align="center" prop="docName" />
-        <el-table-column label="文件路径" align="center" prop="filePath" show-overflow-tooltip />
-        <el-table-column label="状态" align="center" width="120">
+        <el-table-column label="项目名称" align="left" prop="projectName" min-width="180" show-overflow-tooltip />
+        <el-table-column label="省份" align="center" width="130">
+          <template slot-scope="scope">{{ provinceName(scope.row.provinceCode) }}</template>
+        </el-table-column>
+        <el-table-column label="金额（元）" align="right" width="140">
+          <template slot-scope="scope">{{ formatAmount(scope.row.amount) }}</template>
+        </el-table-column>
+        <el-table-column label="投标文件" align="left" prop="docName" min-width="180" show-overflow-tooltip />
+        <el-table-column label="流程状态" align="center" width="140">
           <template slot-scope="scope">
-            <el-tag :type="docStatusTag(scope.row.status)">{{ docStatusText(scope.row.status) }}</el-tag>
+            <el-tag :type="processTag(scope.row)">{{ processText(scope.row) }}</el-tag>
+            <el-tooltip v-if="scope.row.processError" :content="scope.row.processError" placement="top">
+              <i class="el-icon-warning-outline error-icon" />
+            </el-tooltip>
           </template>
         </el-table-column>
+        <el-table-column label="提取到的章节" align="left" prop="extractChapters" min-width="220" show-overflow-tooltip />
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
-        <el-table-column label="操作" align="center" width="120">
+        <el-table-column label="操作" align="center" width="300">
           <template slot-scope="scope">
-            <el-button type="primary" size="mini" @click="openReview(scope.row)">审核</el-button>
+            <el-button
+              type="text"
+              icon="el-icon-scissors"
+              size="mini"
+              :loading="splittingId === scope.row.id"
+              @click="handleSplit(scope.row)"
+            >拆分章节</el-button>
+            <el-button
+              v-if="scope.row.extractFilePath"
+              type="text"
+              icon="el-icon-download"
+              size="mini"
+              @click="handleDownloadExtract(scope.row)"
+            >下载</el-button>
+            <el-button type="text" icon="el-icon-view" size="mini" @click="openReview(scope.row)">审核</el-button>
+            <el-button type="text" icon="el-icon-edit" size="mini" @click="handleUpdate(scope.row)">修改</el-button>
+            <el-button type="text" icon="el-icon-delete" size="mini" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -160,18 +214,95 @@
         <el-button type="primary" size="mini" @click="submitSpan">确定</el-button>
       </div>
     </el-dialog>
+
+    <!-- 投标文件新增/编辑 -->
+    <el-dialog :title="docDialogTitle" :visible.sync="docDialogVisible" width="560px" append-to-body>
+      <el-form ref="docFormRef" :model="docForm" :rules="docRules" label-width="90px">
+        <el-form-item label="项目名称" prop="projectName">
+          <el-input v-model="docForm.projectName" placeholder="请输入项目名称" maxlength="255" />
+        </el-form-item>
+        <el-form-item label="项目金额" prop="amount">
+          <el-input v-model="docForm.amount" placeholder="请输入金额">
+            <template slot="append">元</template>
+          </el-input>
+        </el-form-item>
+        <el-form-item label="所在省份" prop="provinceCode">
+          <el-select v-model="docForm.provinceCode" placeholder="请选择省份" style="width: 100%">
+            <el-option v-for="p in provinceOptions" :key="p.code" :label="p.name" :value="p.code" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="!docForm.id" label="投标文件">
+          <el-upload
+            v-if="!docForm.originalFileId"
+            ref="docUpload"
+            :action="uploadActionUrl"
+            :data="uploadData"
+            :headers="uploadHeaders"
+            :limit="1"
+            :show-file-list="false"
+            :before-upload="beforeDocUpload"
+            :on-success="handleDocUploadSuccess"
+            :on-error="handleDocUploadError"
+          >
+            <el-button size="mini" type="primary" icon="el-icon-upload2">选择文件</el-button>
+            <div slot="tip" class="el-upload__tip">仅支持 .docx 格式，单个文件不超过 50MB，文件会上传到 OSS</div>
+          </el-upload>
+          <div v-else class="upload-file-name">
+            <i class="el-icon-document" />
+            <span class="upload-file-text" :title="docForm.docName">{{ docForm.docName }}</span>
+            <el-button
+              type="text"
+              icon="el-icon-delete"
+              size="mini"
+              class="upload-file-remove"
+              @click="handleDocUploadRemove"
+            >删除</el-button>
+          </div>
+        </el-form-item>
+        <el-form-item v-else label="投标文件">
+          <span>{{ docForm.docName }}</span>
+          <span class="form-tip">（文件不支持替换，如需更换请新增一条记录）</span>
+        </el-form-item>
+      </el-form>
+      <div slot="footer" class="dialog-footer">
+        <el-button size="mini" @click="docDialogVisible = false">取消</el-button>
+        <el-button type="primary" size="mini" :loading="docSubmitting" @click="submitDocForm">确定</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script>
+import { getToken } from '@/utils/auth'
+import { PROVINCE_OPTIONS, getProvinceName } from '@/utils/province'
 import {
   listReviewDoc,
   getReviewContent,
   confirmReviewSpan,
   ignoreReviewSpan,
   addReviewSpan,
-  completeReviewDoc
+  completeReviewDoc,
+  getReviewDoc,
+  addReviewDoc,
+  updateReviewDoc,
+  delReviewDoc,
+  splitReviewDoc,
+  downloadReviewExtract,
+  delReviewFile
 } from '@/api/demo/review'
+
+// 金额按字符串校验，避免浮点精度问题
+function validateAmount(rule, value, callback) {
+  if (value === '' || value === null || value === undefined) {
+    callback(new Error('请输入项目金额'))
+    return
+  }
+  if (!/^\d{1,16}(\.\d{1,2})?$/.test(String(value))) {
+    callback(new Error('金额格式不正确，最多两位小数'))
+    return
+  }
+  callback()
+}
 
 export default {
   name: 'DemoReview',
@@ -181,7 +312,28 @@ export default {
       loading: false,
       docList: [],
       total: 0,
-      queryParams: { pageNum: 1, pageSize: 10 },
+      queryParams: { pageNum: 1, pageSize: 10, projectName: null, provinceCode: null, processStatus: null },
+      provinceOptions: PROVINCE_OPTIONS,
+      processStatusOptions: [
+        { value: 'WAIT_SPLIT', label: '待拆分' },
+        { value: 'SPLIT_DONE', label: '已拆分' }
+      ],
+      docDialogVisible: false,
+      docDialogTitle: '新增投标文件',
+      docSubmitting: false,
+      docForm: {},
+      splittingId: null,
+      batchId: '',
+      uploadActionUrl: process.env.VUE_APP_BASE_API + '/common/file/upload',
+      uploadHeaders: { Authorization: 'Bearer ' + getToken() },
+      docRules: {
+        projectName: [{ required: true, message: '请输入项目名称', trigger: 'blur' }],
+        amount: [
+          { required: true, message: '请输入项目金额', trigger: 'blur' },
+          { validator: validateAmount, trigger: 'blur' }
+        ],
+        provinceCode: [{ required: true, message: '请选择省份', trigger: 'change' }]
+      },
       content: { doc: {}, nodes: [], spans: [] },
       dialogVisible: false,
       dialogTitle: '手动补充敏感词',
@@ -194,6 +346,9 @@ export default {
   computed: {
     visibleSpans() {
       return (this.content.spans || []).filter(s => s.status !== '2')
+    },
+    uploadData() {
+      return { biz_type: 'review_original', batch_id: this.batchId }
     }
   },
   created() {
@@ -209,6 +364,184 @@ export default {
       }).catch(() => {
         this.loading = false
       })
+    },
+    handleQuery() {
+      this.queryParams.pageNum = 1
+      this.getList()
+    },
+    resetQuery() {
+      this.queryParams.projectName = null
+      this.queryParams.provinceCode = null
+      this.queryParams.processStatus = null
+      this.handleQuery()
+    },
+    provinceName(code) {
+      return getProvinceName(code)
+    },
+    formatAmount(amount) {
+      if (amount === null || amount === undefined || amount === '') {
+        return '0.00'
+      }
+      const parts = String(amount).split('.')
+      const integer = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+      const decimal = (parts[1] || '').padEnd(2, '0').slice(0, 2)
+      return integer + '.' + decimal
+    },
+    processText(row) {
+      if (row.processError) {
+        return '拆分失败'
+      }
+      const map = { WAIT_SPLIT: '待拆分', SPLIT_DONE: '已拆分' }
+      return map[row.processStatus] || row.processStatus || '-'
+    },
+    processTag(row) {
+      if (row.processError) {
+        return 'danger'
+      }
+      const map = { WAIT_SPLIT: 'warning', SPLIT_DONE: 'success' }
+      return map[row.processStatus] || 'info'
+    },
+    handleAdd() {
+      this.docDialogTitle = '新增投标文件'
+      // docName / originalFileId 必须先声明，否则 Vue2 检测不到后续赋值，界面上不会显示已上传文件
+      this.docForm = { amount: '0.00', docName: '', originalFileId: null }
+      this.batchId = 'review_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
+      this.docDialogVisible = true
+      this.$nextTick(() => {
+        if (this.$refs.docFormRef) {
+          this.$refs.docFormRef.clearValidate()
+        }
+        if (this.$refs.docUpload) {
+          this.$refs.docUpload.clearFiles()
+        }
+      })
+    },
+    handleUpdate(row) {
+      getReviewDoc(row.id).then(res => {
+        const data = res.data || {}
+        this.docDialogTitle = '修改投标文件'
+        this.docForm = {
+          id: data.id,
+          projectName: data.projectName,
+          amount: data.amount === null || data.amount === undefined ? '' : String(data.amount),
+          provinceCode: data.provinceCode,
+          docName: data.docName,
+          originalFileId: null
+        }
+        this.docDialogVisible = true
+        this.$nextTick(() => {
+          if (this.$refs.docFormRef) {
+            this.$refs.docFormRef.clearValidate()
+          }
+        })
+      })
+    },
+    submitDocForm() {
+      this.$refs.docFormRef.validate(valid => {
+        if (!valid) {
+          return
+        }
+        if (!this.docForm.id && !this.docForm.originalFileId) {
+          this.$modal.msgError('请先上传投标文件')
+          return
+        }
+        this.docSubmitting = true
+        const save = this.docForm.id ? updateReviewDoc(this.docForm) : addReviewDoc(this.docForm)
+        save.then(() => {
+          this.$modal.msgSuccess('保存成功')
+          this.docDialogVisible = false
+          this.getList()
+        }).catch(() => {}).then(() => {
+          this.docSubmitting = false
+        })
+      })
+    },
+    handleDelete(row) {
+      const name = row.projectName || row.docName || ''
+      this.$modal.confirm('确认删除投标文件「' + name + '」？').then(() => {
+        return delReviewDoc(row.id)
+      }).then(() => {
+        this.$modal.msgSuccess('删除成功')
+        this.getList()
+      }).catch(() => {})
+    },
+    handleSplit(row) {
+      this.$modal.confirm('确认从投标文件中提取标题包含“方案”的章节？').then(() => {
+        this.splittingId = row.id
+        splitReviewDoc(row.id).then(res => {
+          const chapters = (res.data && res.data.extractChapters) || ''
+          this.$modal.msgSuccess(chapters ? '拆分完成：' + chapters : '拆分完成')
+          this.getList()
+        }).catch(() => {
+          this.getList()
+        }).then(() => {
+          this.splittingId = null
+        })
+      }).catch(() => {})
+    },
+    async handleDownloadExtract(row) {
+      try {
+        const data = await downloadReviewExtract(row.id)
+        if (data.type && data.type.indexOf('application/json') !== -1) {
+          this.$modal.msgError('下载失败')
+          return
+        }
+        const baseName = (row.docName || '投标文件').replace(/\.docx?$/i, '')
+        const url = URL.createObjectURL(new Blob([data], { type: 'application/octet-stream' }))
+        const link = document.createElement('a')
+        link.href = url
+        link.download = baseName + '-方案章节.docx'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      } catch (e) {
+        this.$modal.msgError('下载失败')
+      }
+    },
+    beforeDocUpload(file) {
+      const name = (file.name || '').toLowerCase()
+      if (!name.endsWith('.docx')) {
+        this.$modal.msgError('只支持 .docx 格式')
+        return false
+      }
+      if (file.size / 1024 / 1024 > 50) {
+        this.$modal.msgError('文件大小不能超过 50MB')
+        return false
+      }
+      return true
+    },
+    handleDocUploadSuccess(res) {
+      if (res.code === 200) {
+        this.$set(this.docForm, 'originalFileId', res.data.id)
+        this.$set(this.docForm, 'docName', res.data.fileName)
+        this.$modal.msgSuccess('文件上传成功')
+      } else {
+        this.$modal.msgError(res.msg || '上传失败')
+      }
+    },
+    handleDocUploadError() {
+      this.$modal.msgError('上传失败')
+    },
+    handleDocUploadRemove() {
+      const fileId = this.docForm.originalFileId
+      const reset = () => {
+        this.$set(this.docForm, 'originalFileId', null)
+        this.$set(this.docForm, 'docName', '')
+        if (this.$refs.docUpload) {
+          this.$refs.docUpload.clearFiles()
+        }
+      }
+      if (!fileId) {
+        reset()
+        return
+      }
+      this.$modal.confirm('确认删除已上传的文件？删除后需要重新上传。').then(() => {
+        return delReviewFile(fileId)
+      }).then(() => {
+        reset()
+        this.$modal.msgSuccess('已删除')
+      }).catch(() => {})
     },
     openReview(row) {
       this.loading = true
@@ -534,5 +867,34 @@ export default {
 .span-actions {
   display: flex;
   gap: 4px;
+}
+.query-form {
+  padding-top: 4px;
+}
+.error-icon {
+  color: #f56c6c;
+  margin-left: 4px;
+  cursor: pointer;
+}
+.upload-file-name {
+  margin-top: 6px;
+  color: #409eff;
+}
+.upload-file-text {
+  display: inline-block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.upload-file-remove {
+  margin-left: 8px;
+  color: #f56c6c;
+}
+.form-tip {
+  margin-left: 6px;
+  color: #909399;
+  font-size: 12px;
 }
 </style>

@@ -28,6 +28,12 @@
             <artifactId>ruoyi-sms</artifactId>
         </dependency>
 
+        <!-- 需要复用统一文件模型 sys_file / 文件存储策略 -->
+        <dependency>
+            <groupId>com.ruoyi</groupId>
+            <artifactId>ruoyi-system</artifactId>
+        </dependency>
+
         <!-- Aspose.Words 本地演示（评估模式，输出会带水印） -->
         <dependency>
             <groupId>com.aspose</groupId>
