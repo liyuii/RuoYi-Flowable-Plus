@@ -121,11 +121,30 @@ public class ReviewDocController {
     }
 
     /**
+     * 重新转图片：审核完成时会自动转，接口用于失败后重试
+     */
+    @PostMapping("/doc/{docId}/image/retry")
+    public R<Void> retryImage(@PathVariable Long docId) {
+        reviewDocService.retryImage(docId);
+        return R.ok();
+    }
+
+    /**
+     * 立即同步到文档库（不等定时任务）
+     */
+    @PostMapping("/doc/{docId}/sync")
+    public R<Void> sync(@PathVariable Long docId) {
+        return toR(reviewDocService.syncNow(docId));
+    }
+
+    /**
      * 审核完成：校验没有待确认记录后自动脱敏，生成脱敏文件
      */
     @PostMapping("/doc/{docId}/complete")
     public R<Void> complete(@PathVariable Long docId) {
-        return reviewDocService.completeReview(docId) ? R.ok("审核完成，已生成脱敏文件") : R.fail("操作失败");
+        return reviewDocService.completeReview(docId)
+            ? R.ok("审核完成，已生成脱敏文件，页面图片正在后台转换")
+            : R.fail("操作失败");
     }
 
     private R<Void> toR(Boolean flag) {

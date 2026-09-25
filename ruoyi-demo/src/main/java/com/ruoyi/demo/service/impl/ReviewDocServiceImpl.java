@@ -8,6 +8,7 @@ import com.ruoyi.common.core.domain.PageQuery;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.common.utils.file.FileDownloadUtils;
 import com.ruoyi.demo.domain.ReviewDoc;
 import com.ruoyi.demo.domain.ReviewSpan;
 import com.ruoyi.demo.domain.vo.ReviewContentVO;
@@ -15,7 +16,9 @@ import com.ruoyi.demo.domain.vo.ReviewNodeVO;
 import com.ruoyi.demo.domain.vo.ReviewRecognizeVO;
 import com.ruoyi.demo.mapper.ReviewDocMapper;
 import com.ruoyi.demo.mapper.ReviewSpanMapper;
+import com.ruoyi.demo.service.DocImageService;
 import com.ruoyi.demo.service.IReviewDocService;
+import com.ruoyi.demo.service.ReviewDocSyncService;
 import com.ruoyi.demo.service.ReviewSensitiveRecognizer;
 import com.ruoyi.demo.utils.LocalFileMultipartFile;
 import com.ruoyi.demo.utils.ReviewChapterSplitter;
@@ -34,8 +37,6 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Date;
@@ -75,6 +76,21 @@ public class ReviewDocServiceImpl implements IReviewDocService {
     private static final String PROCESS_MASK_DONE = "MASK_DONE";
 
     /**
+     * 流程状态：待转图片
+     */
+    private static final String PROCESS_WAIT_IMAGE = "WAIT_IMAGE";
+
+    /**
+     * 流程状态：图片已生成（等待同步到文档库）
+     */
+    private static final String PROCESS_IMAGE_DONE = "IMAGE_DONE";
+
+    /**
+     * 同步状态：待同步
+     */
+    private static final String SYNC_WAIT = "WAIT_SYNC";
+
+    /**
      * 本地工作副本文件名
      */
     private static final String SOURCE_FILE_NAME = "original.docx";
@@ -108,6 +124,10 @@ public class ReviewDocServiceImpl implements IReviewDocService {
     private final FileStorageStrategy storageStrategy;
 
     private final ReviewSensitiveRecognizer sensitiveRecognizer;
+
+    private final DocImageService docImageService;
+
+    private final ReviewDocSyncService reviewDocSyncService;
 
     /**
      * 中间产物工作目录，放在本地，不落在对外暴露的 profile 目录下
@@ -211,6 +231,9 @@ public class ReviewDocServiceImpl implements IReviewDocService {
                 .set(ReviewDoc::getExtractChapters, chapterText)
                 .set(ReviewDoc::getMaskFileId, null)
                 .set(ReviewDoc::getMaskFilePath, null)
+                .set(ReviewDoc::getSyncStatus, SYNC_WAIT)
+                .set(ReviewDoc::getSyncError, null)
+                .set(ReviewDoc::getSyncRetryCount, 0)
                 .set(ReviewDoc::getProcessStatus, PROCESS_SPLIT_DONE)
                 .set(ReviewDoc::getProcessError, null)
                 .set(ReviewDoc::getUpdateTime, now));
@@ -219,6 +242,9 @@ public class ReviewDocServiceImpl implements IReviewDocService {
             doc.setExtractChapters(chapterText);
             doc.setMaskFileId(null);
             doc.setMaskFilePath(null);
+            doc.setSyncStatus(SYNC_WAIT);
+            doc.setSyncError(null);
+            doc.setSyncRetryCount(0);
             doc.setProcessStatus(PROCESS_SPLIT_DONE);
             doc.setProcessError(null);
             doc.setUpdateTime(now);
@@ -277,24 +303,11 @@ public class ReviewDocServiceImpl implements IReviewDocService {
      * 把文件流写回浏览器，下载来源可以是本地文件，也可以是 OSS
      */
     private void writeResponse(Long docId, String fileName, String label, Long size,
-                               StreamSupplier streamSupplier, HttpServletResponse response) {
+                               FileDownloadUtils.StreamSupplier streamSupplier, HttpServletResponse response) {
         long start = System.currentTimeMillis();
         log.info("开始下载{} docId={} fileName={} size={}B", label, docId, fileName, size);
         try {
-            String asciiName = fileName.replaceAll("[^\\x20-\\x7E]", "_");
-            String encodedName = URLEncoder.encode(fileName, StandardCharsets.UTF_8.name())
-                .replace("+", "%20");
-            response.setContentType("application/octet-stream");
-            response.setHeader("Content-Disposition",
-                "attachment; filename=\"" + asciiName + "\"; filename*=UTF-8''" + encodedName);
-            if (size != null) {
-                response.setContentLengthLong(size);
-            }
-            try (InputStream in = streamSupplier.get();
-                 OutputStream out = response.getOutputStream()) {
-                IoUtil.copy(in, out);
-                out.flush();
-            }
+            FileDownloadUtils.writeResponse(fileName, size, streamSupplier, response);
             log.info("{}下载完成 docId={} fileName={} cost={}ms",
                 label, docId, fileName, System.currentTimeMillis() - start);
         } catch (Exception e) {
@@ -424,8 +437,8 @@ public class ReviewDocServiceImpl implements IReviewDocService {
         if (pendingCount != null && pendingCount > 0) {
             throw new ServiceException("还有 " + pendingCount + " 条待确认记录未处理");
         }
-        if ("2".equals(doc.getStatus()) && PROCESS_MASK_DONE.equals(doc.getProcessStatus())) {
-            throw new ServiceException("该文档已完成审核和脱敏，如需重新生成脱敏文件请点击“重新脱敏”");
+        if ("2".equals(doc.getStatus()) && isMaskedStage(doc.getProcessStatus())) {
+            throw new ServiceException("该文档已审核完成并生成过脱敏文件，如需重新生成请点击“重新脱敏”");
         }
         long start = System.currentTimeMillis();
         log.info("开始审核完成处理 docId={} docName={} 流程状态={}",
@@ -459,6 +472,35 @@ public class ReviewDocServiceImpl implements IReviewDocService {
             docId, replaced, doc.getMaskFileId(), doc.getMaskFilePath(),
             System.currentTimeMillis() - start);
         return doc.getMaskFilePath();
+    }
+
+    @Override
+    public void retryImage(Long docId) {
+        ReviewDoc doc = getDocOrThrow(docId);
+        if (StringUtils.isBlank(doc.getMaskFilePath())) {
+            throw new ServiceException("请先完成审核，生成脱敏文件后再转图片");
+        }
+        log.info("手动重新转图片 docId={} 流程状态={} 已重试={}次",
+            docId, doc.getProcessStatus(), doc.getImageRetryCount());
+        docMapper.update(null, Wrappers.<ReviewDoc>lambdaUpdate()
+            .eq(ReviewDoc::getId, docId)
+            .set(ReviewDoc::getProcessStatus, PROCESS_WAIT_IMAGE)
+            .set(ReviewDoc::getProcessError, null)
+            .set(ReviewDoc::getImageRetryCount, 0)
+            .set(ReviewDoc::getUpdateTime, new Date()));
+        docImageService.convertAsync(docId);
+    }
+
+    @Override
+    public Boolean syncNow(Long docId) {
+        ReviewDoc doc = getDocOrThrow(docId);
+        log.info("手动立即同步 docId={} 流程状态={} 同步状态={}",
+            docId, doc.getProcessStatus(), doc.getSyncStatus());
+        if (!reviewDocSyncService.syncNow(docId)) {
+            ReviewDoc after = docMapper.selectById(docId);
+            throw new ServiceException("同步失败：" + (after == null ? "未知原因" : after.getSyncError()));
+        }
+        return true;
     }
 
     /**
@@ -507,14 +549,22 @@ public class ReviewDocServiceImpl implements IReviewDocService {
                 .eq(ReviewDoc::getId, doc.getId())
                 .set(ReviewDoc::getMaskFileId, maskFile.getId())
                 .set(ReviewDoc::getMaskFilePath, maskFile.getOssUrl())
-                .set(ReviewDoc::getProcessStatus, PROCESS_MASK_DONE)
+                .set(ReviewDoc::getProcessStatus, PROCESS_WAIT_IMAGE)
+                .set(ReviewDoc::getSyncStatus, SYNC_WAIT)
+                .set(ReviewDoc::getSyncError, null)
+                .set(ReviewDoc::getImageRetryCount, 0)
                 .set(ReviewDoc::getProcessError, null)
                 .set(ReviewDoc::getUpdateTime, now));
             doc.setMaskFileId(maskFile.getId());
             doc.setMaskFilePath(maskFile.getOssUrl());
-            doc.setProcessStatus(PROCESS_MASK_DONE);
+            doc.setProcessStatus(PROCESS_WAIT_IMAGE);
+            doc.setSyncStatus(SYNC_WAIT);
+            doc.setSyncError(null);
+            doc.setImageRetryCount(0);
             doc.setProcessError(null);
             doc.setUpdateTime(now);
+            // 转图片是重活，异步做，接口立即返回；失败由兜底任务和“重新转图片”按钮补救
+            docImageService.convertAsync(doc.getId());
             return replaced;
         } catch (ServiceException e) {
             markMaskFailed(doc, e.getMessage());
@@ -593,12 +643,13 @@ public class ReviewDocServiceImpl implements IReviewDocService {
     }
 
     /**
-     * 下载流来源（本地文件或 OSS），允许抛受检异常
-     */
-    @FunctionalInterface
-    private interface StreamSupplier {
-
-        InputStream get() throws Exception;
+     * 是否已经进入“脱敏/图片”阶段：进入过这个阶段说明脱敏文件已生成，
+    */
+    private boolean isMaskedStage(String processStatus) {
+        return PROCESS_MASK_DONE.equals(processStatus)
+            || PROCESS_WAIT_IMAGE.equals(processStatus)
+            || PROCESS_IMAGE_DONE.equals(processStatus)
+            || "IMAGE_RUNNING".equals(processStatus);
     }
 
     private ReviewDoc getDocOrThrow(Long docId) {

@@ -147,3 +147,22 @@ export function downloadReviewMask(docId) {
     responseType: 'blob'
   })
 }
+
+// 重新转图片（审核完成时自动转，失败后重试）
+export function retryReviewImage(docId) {
+  return request({
+    url: '/demo/review/doc/' + docId + '/image/retry',
+    method: 'post',
+    headers: { repeatSubmit: false }
+  })
+}
+
+// 立即同步到文档库（不等定时任务）
+export function syncReviewDoc(docId) {
+  return request({
+    url: '/demo/review/doc/' + docId + '/sync',
+    method: 'post',
+    timeout: 180000,
+    headers: { repeatSubmit: false }
+  })
+}

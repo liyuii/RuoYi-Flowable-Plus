@@ -34,6 +34,12 @@
             <artifactId>ruoyi-system</artifactId>
         </dependency>
 
+        <!-- 文档库模块：本地模拟跨系统调用（将来换成 HTTP 调用） -->
+        <dependency>
+            <groupId>com.ruoyi</groupId>
+            <artifactId>ruoyi-doc</artifactId>
+        </dependency>
+
         <!-- Aspose.Words 本地演示（评估模式，输出会带水印） -->
         <dependency>
             <groupId>com.aspose</groupId>

@@ -28,6 +28,11 @@ public class SysFileServiceImpl implements ISysFileService {
     private final FileStorageStrategy storageStrategy;
    @Override
    public SysFile upload(MultipartFile file, String bizType, String batchId) {
+        return upload(file, bizType, batchId, LoginHelper.getUsername());
+   }
+
+   @Override
+   public SysFile upload(MultipartFile file, String bizType, String batchId, String createBy) {
         // 在调用存储策略之前读取文件信息（上传后 MultipartFile 的临时文件可能被清理）
         String originalName = file.getOriginalFilename();
         String suffix = originalName.substring(originalName.lastIndexOf("."));
@@ -41,7 +46,7 @@ public class SysFileServiceImpl implements ISysFileService {
         sysFile.setFileSuffix(suffix);
         sysFile.setFileSize(fileSize);
         sysFile.setOssUrl(fileUrl);
-        sysFile.setCreateBy(LoginHelper.getUsername());
+        sysFile.setCreateBy(createBy);
         sysFile.setCreateTime(new Date());
         baseMapper.insert(sysFile);
         return sysFile;

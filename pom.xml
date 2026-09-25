@@ -328,6 +328,13 @@
                 <version>${ruoyi-flowable-plus.version}</version>
             </dependency>
 
+            <!-- 文档库模块（模拟独立项目） -->
+            <dependency>
+                <groupId>com.ruoyi</groupId>
+                <artifactId>ruoyi-doc</artifactId>
+                <version>${ruoyi-flowable-plus.version}</version>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 
@@ -335,6 +342,7 @@
         <module>ruoyi-admin</module>
         <module>ruoyi-common</module>
         <module>ruoyi-demo</module>
+        <module>ruoyi-doc</module>
         <module>ruoyi-extend</module>
         <module>ruoyi-flowable</module>
         <module>ruoyi-framework</module>

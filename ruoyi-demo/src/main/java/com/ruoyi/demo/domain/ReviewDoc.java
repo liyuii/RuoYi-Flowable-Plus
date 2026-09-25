@@ -75,8 +75,9 @@ public class ReviewDoc {
     private String extractChapters;
 
     /**
-     * 流程状态：WAIT_SPLIT 待拆分，SPLIT_DONE 已拆分，
-     * WAIT_REVIEW 待审核，WAIT_MASK 待脱敏（审核完成但脱敏失败），MASK_DONE 脱敏完成
+     * 流程状态：WAIT_SPLIT 待拆分，SPLIT_DONE 已拆分，WAIT_REVIEW 待审核，
+     * WAIT_MASK 待脱敏（审核完成但脱敏失败），MASK_DONE 脱敏完成，
+     * WAIT_IMAGE 待转图片，IMAGE_RUNNING 转图片中，IMAGE_DONE 图片已生成（等待同步）
      */
     private String processStatus;
 
@@ -89,6 +90,31 @@ public class ReviewDoc {
      * 处理重试次数
      */
     private Integer retryCount;
+
+    /**
+     * 同步状态：WAIT_SYNC 待同步，SYNC_DONE 已同步，SYNC_FAIL 同步失败
+     */
+    private String syncStatus;
+
+    /**
+     * 最近一次同步成功时间
+     */
+    private Date syncTime;
+
+    /**
+     * 最近一次同步失败原因，成功后清空
+     */
+    private String syncError;
+
+    /**
+     * 同步重试次数
+     */
+    private Integer syncRetryCount;
+
+    /**
+     * 转图片重试次数
+     */
+    private Integer imageRetryCount;
 
     /**
      * 删除标志（0 代表存在，2 代表删除）

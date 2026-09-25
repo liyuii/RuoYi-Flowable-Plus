@@ -78,6 +78,12 @@
             <artifactId>ruoyi-demo</artifactId>
         </dependency>
 
+        <!-- 文档库模块（模拟独立项目） -->
+        <dependency>
+            <groupId>com.ruoyi</groupId>
+            <artifactId>ruoyi-doc</artifactId>
+        </dependency>
+
         <!-- flowable模块-->
         <dependency>
             <groupId>com.ruoyi</groupId>

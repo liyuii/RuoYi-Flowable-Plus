@@ -79,4 +79,14 @@ public interface IReviewDocService {
      */
     String applyMask(Long docId);
 
+    /**
+     * 重新转图片：把流程状态重置为待转图片并异步重跑（审核完成时会自动转，这里用于失败重试）
+     */
+    void retryImage(Long docId);
+
+    /**
+     * 立即同步到文档库（不等定时任务）
+     */
+    Boolean syncNow(Long docId);
+
 }

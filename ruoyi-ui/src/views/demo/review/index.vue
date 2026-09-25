@@ -54,9 +54,21 @@
             </el-tooltip>
           </template>
         </el-table-column>
+        <el-table-column label="图片/同步" align="center" width="130">
+          <template slot-scope="scope">
+            <el-tag size="mini" :type="syncTag(scope.row)">{{ syncText(scope.row) }}</el-tag>
+            <el-tooltip
+              v-if="scope.row.syncError || scope.row.syncTime"
+              :content="scope.row.syncError || ('同步时间：' + scope.row.syncTime)"
+              placement="top"
+            >
+              <i class="el-icon-info info-icon" />
+            </el-tooltip>
+          </template>
+        </el-table-column>
         <el-table-column label="提取到的章节" align="left" prop="extractChapters" min-width="220" show-overflow-tooltip />
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
-        <el-table-column label="操作" align="center" width="360">
+        <el-table-column label="操作" align="center" width="400">
           <template slot-scope="scope">
             <el-button type="text" icon="el-icon-edit" size="mini" @click="handleUpdate(scope.row)">修改</el-button>
             <el-button
@@ -89,6 +101,22 @@
               :loading="maskingId === scope.row.id"
               @click="handleReMask(scope.row)"
             >重新脱敏</el-button>
+            <el-button
+              v-if="scope.row.processStatus === 'WAIT_IMAGE'"
+              type="text"
+              icon="el-icon-picture-outline"
+              size="mini"
+              :loading="imageRetryingId === scope.row.id"
+              @click="handleRetryImage(scope.row)"
+            >重新转图片</el-button>
+            <el-button
+              v-if="scope.row.processStatus === 'IMAGE_DONE' && scope.row.syncStatus !== 'SYNC_DONE'"
+              type="text"
+              icon="el-icon-refresh"
+              size="mini"
+              :loading="syncingId === scope.row.id"
+              @click="handleSyncNow(scope.row)"
+            >立即同步</el-button>
             <el-button type="text" icon="el-icon-view" size="mini" @click="openReview(scope.row)">审核</el-button>
             <el-button
               v-if="scope.row.extractFilePath"
@@ -314,7 +342,9 @@ import {
   delReviewFile,
   recognizeReviewDoc,
   applyReviewMask,
-  downloadReviewMask
+  downloadReviewMask,
+  retryReviewImage,
+  syncReviewDoc
 } from '@/api/demo/review'
 
 // 金额按字符串校验，避免浮点精度问题
@@ -354,6 +384,8 @@ export default {
       splittingId: null,
       recognizingId: null,
       maskingId: null,
+      imageRetryingId: null,
+      syncingId: null,
       batchId: '',
       uploadActionUrl: process.env.VUE_APP_BASE_API + '/common/file/upload',
       uploadHeaders: { Authorization: 'Bearer ' + getToken() },
@@ -420,14 +452,23 @@ export default {
     },
     processText(row) {
       if (row.processError) {
-        return row.processStatus === 'WAIT_MASK' ? '脱敏失败' : '处理失败'
+        if (row.processStatus === 'WAIT_MASK') {
+          return '脱敏失败'
+        }
+        if (row.processStatus === 'WAIT_IMAGE') {
+          return '转图片失败'
+        }
+        return '处理失败'
       }
       const map = {
         WAIT_SPLIT: '待拆分',
         SPLIT_DONE: '已拆分',
         WAIT_REVIEW: '待审核',
         WAIT_MASK: '待脱敏',
-        MASK_DONE: '脱敏完成'
+        MASK_DONE: '脱敏完成',
+        WAIT_IMAGE: '待转图片',
+        IMAGE_RUNNING: '转图片中',
+        IMAGE_DONE: '图片已生成'
       }
       return map[row.processStatus] || row.processStatus || '-'
     },
@@ -440,9 +481,29 @@ export default {
         SPLIT_DONE: 'success',
         WAIT_REVIEW: '',
         WAIT_MASK: 'warning',
-        MASK_DONE: 'success'
+        MASK_DONE: 'success',
+        WAIT_IMAGE: 'warning',
+        IMAGE_RUNNING: 'info',
+        IMAGE_DONE: 'success'
       }
       return map[row.processStatus] || 'info'
+    },
+    syncText(row) {
+      if (row.processStatus === 'WAIT_IMAGE' || row.processStatus === 'IMAGE_RUNNING') {
+        return '待转图片'
+      }
+      if (row.processStatus !== 'IMAGE_DONE') {
+        return '-'
+      }
+      const map = { WAIT_SYNC: '待同步', SYNC_DONE: '已同步', SYNC_FAIL: '同步失败' }
+      return map[row.syncStatus] || '待同步'
+    },
+    syncTag(row) {
+      if (row.processStatus !== 'IMAGE_DONE') {
+        return 'info'
+      }
+      const map = { WAIT_SYNC: 'warning', SYNC_DONE: 'success', SYNC_FAIL: 'danger' }
+      return map[row.syncStatus] || 'warning'
     },
     sourceText(source) {
       const map = { AI: 'AI', REGEX: '正则', DICT: '词典', M: '机器', MANUAL: '人工', A: '人工' }
@@ -599,6 +660,32 @@ export default {
           this.getList()
         }).then(() => {
           this.maskingId = null
+        })
+      }).catch(() => {})
+    },
+    handleRetryImage(row) {
+      this.$modal.confirm('确认重新把脱敏文件转成页面图片？转图片在后台异步执行，稍后刷新列表查看结果。').then(() => {
+        this.imageRetryingId = row.id
+        retryReviewImage(row.id).then(() => {
+          this.$modal.msgSuccess('已提交转图片任务')
+          this.getList()
+        }).catch(() => {
+          this.getList()
+        }).then(() => {
+          this.imageRetryingId = null
+        })
+      }).catch(() => {})
+    },
+    handleSyncNow(row) {
+      this.$modal.confirm('确认立即把该文档同步到文档库？').then(() => {
+        this.syncingId = row.id
+        syncReviewDoc(row.id).then(() => {
+          this.$modal.msgSuccess('同步完成')
+          this.getList()
+        }).catch(() => {
+          this.getList()
+        }).then(() => {
+          this.syncingId = null
         })
       }).catch(() => {})
     },
@@ -979,6 +1066,11 @@ export default {
 }
 .error-icon {
   color: #f56c6c;
+  margin-left: 4px;
+  cursor: pointer;
+}
+.info-icon {
+  color: #909399;
   margin-left: 4px;
   cursor: pointer;
 }
