@@ -56,8 +56,9 @@
         </el-table-column>
         <el-table-column label="提取到的章节" align="left" prop="extractChapters" min-width="220" show-overflow-tooltip />
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
-        <el-table-column label="操作" align="center" width="300">
+        <el-table-column label="操作" align="center" width="360">
           <template slot-scope="scope">
+            <el-button type="text" icon="el-icon-edit" size="mini" @click="handleUpdate(scope.row)">修改</el-button>
             <el-button
               type="text"
               icon="el-icon-scissors"
@@ -66,14 +67,36 @@
               @click="handleSplit(scope.row)"
             >拆分章节</el-button>
             <el-button
+              type="text"
+              icon="el-icon-magic-stick"
+              size="mini"
+              :loading="recognizingId === scope.row.id"
+              :disabled="!scope.row.extractFilePath"
+              @click="handleRecognize(scope.row)"
+            >识别敏感词</el-button>
+            <el-button
+              v-if="scope.row.maskFilePath"
+              type="text"
+              icon="el-icon-download"
+              size="mini"
+              @click="handleDownloadMask(scope.row)"
+            >脱敏文件</el-button>
+            <el-button
+              v-if="scope.row.processStatus === 'WAIT_MASK'"
+              type="text"
+              icon="el-icon-refresh"
+              size="mini"
+              :loading="maskingId === scope.row.id"
+              @click="handleReMask(scope.row)"
+            >重新脱敏</el-button>
+            <el-button type="text" icon="el-icon-view" size="mini" @click="openReview(scope.row)">审核</el-button>
+            <el-button
               v-if="scope.row.extractFilePath"
               type="text"
               icon="el-icon-download"
               size="mini"
               @click="handleDownloadExtract(scope.row)"
             >下载</el-button>
-            <el-button type="text" icon="el-icon-view" size="mini" @click="openReview(scope.row)">审核</el-button>
-            <el-button type="text" icon="el-icon-edit" size="mini" @click="handleUpdate(scope.row)">修改</el-button>
             <el-button type="text" icon="el-icon-delete" size="mini" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
@@ -173,8 +196,8 @@
               <i class="side-badge">{{ spanBadge(span.id) }}</i>
               <span class="span-word">{{ span.spanText }}</span>
               <el-tag size="mini" type="warning">{{ span.spanType }}</el-tag>
-              <el-tag size="mini" :type="span.source === 'M' ? 'info' : 'success'">
-                {{ span.source === 'M' ? '机器' : '人工' }}
+              <el-tag size="mini" :type="sourceTag(span.source)">
+                {{ sourceText(span.source) }}
               </el-tag>
             </div>
             <div class="span-status">{{ statusText(span.status) }}</div>
@@ -288,7 +311,10 @@ import {
   delReviewDoc,
   splitReviewDoc,
   downloadReviewExtract,
-  delReviewFile
+  delReviewFile,
+  recognizeReviewDoc,
+  applyReviewMask,
+  downloadReviewMask
 } from '@/api/demo/review'
 
 // 金额按字符串校验，避免浮点精度问题
@@ -316,13 +342,18 @@ export default {
       provinceOptions: PROVINCE_OPTIONS,
       processStatusOptions: [
         { value: 'WAIT_SPLIT', label: '待拆分' },
-        { value: 'SPLIT_DONE', label: '已拆分' }
+        { value: 'SPLIT_DONE', label: '已拆分' },
+        { value: 'WAIT_REVIEW', label: '待审核' },
+        { value: 'WAIT_MASK', label: '待脱敏' },
+        { value: 'MASK_DONE', label: '脱敏完成' }
       ],
       docDialogVisible: false,
       docDialogTitle: '新增投标文件',
       docSubmitting: false,
       docForm: {},
       splittingId: null,
+      recognizingId: null,
+      maskingId: null,
       batchId: '',
       uploadActionUrl: process.env.VUE_APP_BASE_API + '/common/file/upload',
       uploadHeaders: { Authorization: 'Bearer ' + getToken() },
@@ -337,7 +368,7 @@ export default {
       content: { doc: {}, nodes: [], spans: [] },
       dialogVisible: false,
       dialogTitle: '手动补充敏感词',
-      types: ['人名', '地名', '机构名', '电话', '其他'],
+      types: ['人名', '地名', '机构名', '项目名', '电话', '日期', '数量', '其他'],
       form: {},
       activeSpanId: null,
       searchWord: ''
@@ -389,17 +420,37 @@ export default {
     },
     processText(row) {
       if (row.processError) {
-        return '拆分失败'
+        return row.processStatus === 'WAIT_MASK' ? '脱敏失败' : '处理失败'
       }
-      const map = { WAIT_SPLIT: '待拆分', SPLIT_DONE: '已拆分' }
+      const map = {
+        WAIT_SPLIT: '待拆分',
+        SPLIT_DONE: '已拆分',
+        WAIT_REVIEW: '待审核',
+        WAIT_MASK: '待脱敏',
+        MASK_DONE: '脱敏完成'
+      }
       return map[row.processStatus] || row.processStatus || '-'
     },
     processTag(row) {
       if (row.processError) {
         return 'danger'
       }
-      const map = { WAIT_SPLIT: 'warning', SPLIT_DONE: 'success' }
+      const map = {
+        WAIT_SPLIT: 'warning',
+        SPLIT_DONE: 'success',
+        WAIT_REVIEW: '',
+        WAIT_MASK: 'warning',
+        MASK_DONE: 'success'
+      }
       return map[row.processStatus] || 'info'
+    },
+    sourceText(source) {
+      const map = { AI: 'AI', REGEX: '正则', DICT: '词典', M: '机器', MANUAL: '人工', A: '人工' }
+      return map[source] || source || '人工'
+    },
+    sourceTag(source) {
+      const map = { AI: 'success', REGEX: 'info', DICT: 'warning', M: 'info' }
+      return map[source] || ''
     },
     handleAdd() {
       this.docDialogTitle = '新增投标文件'
@@ -479,6 +530,25 @@ export default {
         })
       }).catch(() => {})
     },
+    handleRecognize(row) {
+      this.$modal.confirm('确认对截取文件执行敏感词识别？识别结果需要人工审核确认。').then(() => {
+        this.recognizingId = row.id
+        recognizeReviewDoc(row.id).then(res => {
+          const data = res.data || {}
+          let text = '识别完成：候选 ' + (data.candidateCount || 0) + ' 条（AI ' + (data.aiCount || 0) +
+            ' / 正则 ' + (data.regexCount || 0) + '），新增 ' + (data.newCount || 0) + ' 条'
+          if (!data.aiUsed) {
+            text += '，AI 未参与'
+          }
+          this.$modal.msgSuccess(text)
+          this.getList()
+        }).catch(() => {
+          this.getList()
+        }).then(() => {
+          this.recognizingId = null
+        })
+      }).catch(() => {})
+    },
     async handleDownloadExtract(row) {
       try {
         const data = await downloadReviewExtract(row.id)
@@ -498,6 +568,39 @@ export default {
       } catch (e) {
         this.$modal.msgError('下载失败')
       }
+    },
+    async handleDownloadMask(row) {
+      try {
+        const data = await downloadReviewMask(row.id)
+        if (data.type && data.type.indexOf('application/json') !== -1) {
+          this.$modal.msgError('下载失败')
+          return
+        }
+        const baseName = (row.docName || '投标文件').replace(/\.docx?$/i, '')
+        const url = URL.createObjectURL(new Blob([data], { type: 'application/octet-stream' }))
+        const link = document.createElement('a')
+        link.href = url
+        link.download = baseName + '-脱敏.docx'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      } catch (e) {
+        this.$modal.msgError('下载失败')
+      }
+    },
+    handleReMask(row) {
+      this.$modal.confirm('确认按最新敏感词记录重新生成脱敏文件？').then(() => {
+        this.maskingId = row.id
+        applyReviewMask(row.id).then(res => {
+          this.$modal.msgSuccess(res.msg || '脱敏完成')
+          this.getList()
+        }).catch(() => {
+          this.getList()
+        }).then(() => {
+          this.maskingId = null
+        })
+      }).catch(() => {})
     },
     beforeDocUpload(file) {
       const name = (file.name || '').toLowerCase()
@@ -717,13 +820,16 @@ export default {
       })
     },
     completeDoc() {
-      this.$confirm('审核完成后文档状态将变为“审核完成”，确认没有遗漏的待确认记录？', '审核完成', {
+      this.$confirm('审核完成后会自动把已确认的敏感词替换成类型化掩码（如【机构名】）并生成脱敏文件，确认没有遗漏的待确认记录？', '审核完成', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
       }).then(() => {
         completeReviewDoc(this.content.doc.id).then(res => {
-          this.$message.success(res.msg || '审核完成')
+          this.$modal.msgSuccess(res.msg || '审核完成')
+          this.backList()
+        }).catch(() => {
+          // 审核状态已保存，脱敏失败时刷新页面状态，可回列表点“重新脱敏”重试
           this.reloadContent()
         })
       }).catch(() => {})

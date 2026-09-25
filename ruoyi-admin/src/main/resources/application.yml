@@ -27,6 +27,16 @@ ruoyi:
     work-dir: D:/GitHubItem/RuoYi-Flowable-Plus/review-work
     # 章节命中关键词，多个用逗号分隔
     split-keywords: 方案
+    # 脱敏识别的 AI 引擎：走 OpenAI 兼容协议，未配置真实 key 时自动降级为只用正则引擎
+    ai:
+      enabled: true
+      base-url: https://api.deepseek.com
+      # 预留占位符，替换成真实 key 后生效；以 sk-REPLACE 开头时视为未配置
+      api-key: sk-939d70d4a36b41b8ac18a5188bdc2208
+      model: deepseek-flash
+      timeout: 60000
+      # 单批文本字数上限，按段落攒批
+      batch-size: 3000
 
 # OnlyOffice 在线编辑配置
 onlyoffice:

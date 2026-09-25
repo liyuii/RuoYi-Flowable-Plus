@@ -12,9 +12,12 @@ import com.ruoyi.demo.domain.ReviewDoc;
 import com.ruoyi.demo.domain.ReviewSpan;
 import com.ruoyi.demo.domain.vo.ReviewContentVO;
 import com.ruoyi.demo.domain.vo.ReviewNodeVO;
+import com.ruoyi.demo.domain.vo.ReviewRecognizeVO;
 import com.ruoyi.demo.mapper.ReviewDocMapper;
 import com.ruoyi.demo.mapper.ReviewSpanMapper;
 import com.ruoyi.demo.service.IReviewDocService;
+import com.ruoyi.demo.service.ReviewSensitiveRecognizer;
+import com.ruoyi.demo.utils.LocalFileMultipartFile;
 import com.ruoyi.demo.utils.ReviewChapterSplitter;
 import com.ruoyi.demo.utils.ReviewDocxParser;
 import com.ruoyi.demo.utils.ReviewMaskApplier;
@@ -57,6 +60,21 @@ public class ReviewDocServiceImpl implements IReviewDocService {
     private static final String PROCESS_SPLIT_DONE = "SPLIT_DONE";
 
     /**
+     * 流程状态：待审核（识别完成，等待人工确认敏感词）
+     */
+    private static final String PROCESS_WAIT_REVIEW = "WAIT_REVIEW";
+
+    /**
+     * 流程状态：待脱敏（审核已完成，但脱敏失败，可重试）
+     */
+    private static final String PROCESS_WAIT_MASK = "WAIT_MASK";
+
+    /**
+     * 流程状态：脱敏完成
+     */
+    private static final String PROCESS_MASK_DONE = "MASK_DONE";
+
+    /**
      * 本地工作副本文件名
      */
     private static final String SOURCE_FILE_NAME = "original.docx";
@@ -66,6 +84,21 @@ public class ReviewDocServiceImpl implements IReviewDocService {
      */
     private static final String EXTRACT_FILE_NAME = "extract.docx";
 
+    /**
+     * 脱敏文件名
+     */
+    private static final String MASK_FILE_NAME = "masked.docx";
+
+    /**
+     * 脱敏文件在 sys_file 中的业务类型
+     */
+    private static final String BIZ_TYPE_MASK = "review_masked";
+
+    /**
+     * 脱敏文件批次前缀，配合 biz_id 关联到 review_doc.id
+     */
+    private static final String BATCH_MASK_PREFIX = "review_mask_";
+
     private final ReviewDocMapper docMapper;
 
     private final ReviewSpanMapper spanMapper;
@@ -73,6 +106,8 @@ public class ReviewDocServiceImpl implements IReviewDocService {
     private final ISysFileService sysFileService;
 
     private final FileStorageStrategy storageStrategy;
+
+    private final ReviewSensitiveRecognizer sensitiveRecognizer;
 
     /**
      * 中间产物工作目录，放在本地，不落在对外暴露的 profile 目录下
@@ -119,6 +154,8 @@ public class ReviewDocServiceImpl implements IReviewDocService {
         doc.setFilePath(sysFile.getOssUrl());
         doc.setStatus("0");
         doc.setExtractFilePath(null);
+        doc.setMaskFilePath(null);
+        doc.setMaskFileId(null);
         doc.setExtractChapters(null);
         doc.setProcessStatus(PROCESS_WAIT_SPLIT);
         doc.setProcessError(null);
@@ -163,6 +200,8 @@ public class ReviewDocServiceImpl implements IReviewDocService {
         try {
             List<String> chapters = ReviewChapterSplitter.split(source.getAbsolutePath(), output.getAbsolutePath(), keywordList());
             String chapterText = String.join("；", chapters);
+            // 重新拆分说明源文件变了，上一版脱敏文件（最终产物）作废，随后的重新脱敏会重新上传 OSS
+            deleteMaskedFile(docId, doc.getMaskFileId());
             Date now = new Date();
             // 成功时 process_error 必须显式置空，updateById 会忽略 null 字段
             docMapper.update(null, Wrappers.<ReviewDoc>lambdaUpdate()
@@ -170,12 +209,16 @@ public class ReviewDocServiceImpl implements IReviewDocService {
                 .set(ReviewDoc::getFilePath, source.getAbsolutePath())
                 .set(ReviewDoc::getExtractFilePath, output.getAbsolutePath())
                 .set(ReviewDoc::getExtractChapters, chapterText)
+                .set(ReviewDoc::getMaskFileId, null)
+                .set(ReviewDoc::getMaskFilePath, null)
                 .set(ReviewDoc::getProcessStatus, PROCESS_SPLIT_DONE)
                 .set(ReviewDoc::getProcessError, null)
                 .set(ReviewDoc::getUpdateTime, now));
             doc.setFilePath(source.getAbsolutePath());
             doc.setExtractFilePath(output.getAbsolutePath());
             doc.setExtractChapters(chapterText);
+            doc.setMaskFileId(null);
+            doc.setMaskFilePath(null);
             doc.setProcessStatus(PROCESS_SPLIT_DONE);
             doc.setProcessError(null);
             doc.setUpdateTime(now);
@@ -205,28 +248,82 @@ public class ReviewDocServiceImpl implements IReviewDocService {
         if (!file.exists()) {
             throw new ServiceException("截取文件不存在，请重新执行章节拆分");
         }
+        writeLocalFile(docId, file, buildDownloadFileName(doc, "方案章节"), "截取文件", response);
+    }
+
+    @Override
+    public void downloadMask(Long docId, HttpServletResponse response) {
+        ReviewDoc doc = getDocOrThrow(docId);
+        if (StringUtils.isBlank(doc.getMaskFilePath())) {
+            throw new ServiceException("尚未生成脱敏文件，请先完成审核");
+        }
+        String fileName = buildDownloadFileName(doc, "脱敏");
+        File local = new File(workDirOf(docId), MASK_FILE_NAME);
+        if (local.exists() && local.length() > 0) {
+            writeLocalFile(docId, local, fileName, "脱敏文件", response);
+            return;
+        }
+        // 本地工作副本被清理时，从 OSS 回捞（脱敏文件是最终文件，已上传 OSS）
+        log.info("本地脱敏副本不存在，改从 OSS 下载 docId={} ossUrl={}", docId, doc.getMaskFilePath());
+        writeResponse(docId, fileName, "脱敏文件", null,
+            () -> storageStrategy.getContent(doc.getMaskFilePath()), response);
+    }
+
+    private void writeLocalFile(Long docId, File file, String fileName, String label, HttpServletResponse response) {
+        writeResponse(docId, fileName, label, file.length(), () -> Files.newInputStream(file.toPath()), response);
+    }
+
+    /**
+     * 把文件流写回浏览器，下载来源可以是本地文件，也可以是 OSS
+     */
+    private void writeResponse(Long docId, String fileName, String label, Long size,
+                               StreamSupplier streamSupplier, HttpServletResponse response) {
         long start = System.currentTimeMillis();
+        log.info("开始下载{} docId={} fileName={} size={}B", label, docId, fileName, size);
         try {
-            String fileName = buildExtractFileName(doc);
-            log.info("开始下载截取文件 docId={} fileName={} size={}B", docId, fileName, file.length());
             String asciiName = fileName.replaceAll("[^\\x20-\\x7E]", "_");
             String encodedName = URLEncoder.encode(fileName, StandardCharsets.UTF_8.name())
                 .replace("+", "%20");
             response.setContentType("application/octet-stream");
             response.setHeader("Content-Disposition",
                 "attachment; filename=\"" + asciiName + "\"; filename*=UTF-8''" + encodedName);
-            response.setContentLengthLong(file.length());
-            try (InputStream in = Files.newInputStream(file.toPath());
+            if (size != null) {
+                response.setContentLengthLong(size);
+            }
+            try (InputStream in = streamSupplier.get();
                  OutputStream out = response.getOutputStream()) {
                 IoUtil.copy(in, out);
                 out.flush();
             }
-            log.info("截取文件下载完成 docId={} fileName={} size={}B cost={}ms",
-                docId, fileName, file.length(), System.currentTimeMillis() - start);
+            log.info("{}下载完成 docId={} fileName={} cost={}ms",
+                label, docId, fileName, System.currentTimeMillis() - start);
         } catch (Exception e) {
-            log.error("下载截取文件失败 docId={}", docId, e);
-            throw new ServiceException("下载截取文件失败: " + e.getMessage());
+            log.error("下载{}失败 docId={}", label, docId, e);
+            throw new ServiceException("下载" + label + "失败: " + e.getMessage());
         }
+    }
+
+    @Override
+    public ReviewRecognizeVO recognize(Long docId) {
+        ReviewDoc doc = getDocOrThrow(docId);
+        if (StringUtils.isBlank(doc.getExtractFilePath())) {
+            throw new ServiceException("请先执行章节拆分，再执行脱敏");
+        }
+        if (!new File(doc.getExtractFilePath()).exists()) {
+            throw new ServiceException("截取文件不存在，请重新执行章节拆分");
+        }
+        long start = System.currentTimeMillis();
+        log.info("开始脱敏识别 docId={} docName={} 文件={}", docId, doc.getDocName(), doc.getExtractFilePath());
+        ReviewRecognizeVO result = sensitiveRecognizer.recognize(doc);
+        docMapper.update(null, Wrappers.<ReviewDoc>lambdaUpdate()
+            .eq(ReviewDoc::getId, docId)
+            .set(ReviewDoc::getProcessStatus, PROCESS_WAIT_REVIEW)
+            .set(ReviewDoc::getProcessError, null)
+            .set(ReviewDoc::getUpdateTime, new Date()));
+        log.info("脱敏识别结束 docId={} 流程状态={} 候选={} 新增={} cost={}ms",
+            docId, PROCESS_WAIT_REVIEW, result.getCandidateCount(), result.getNewCount(),
+            System.currentTimeMillis() - start);
+        return result;
     }
 
     @Override
@@ -264,6 +361,7 @@ public class ReviewDocServiceImpl implements IReviewDocService {
                 doc.setUpdateTime(new Date());
                 docMapper.updateById(doc);
             }
+            invalidateMask(span.getDocId());
         }
         return updated;
     }
@@ -273,7 +371,11 @@ public class ReviewDocServiceImpl implements IReviewDocService {
         ReviewSpan span = getSpanOrThrow(id);
         span.setStatus("2");
         span.setUpdateTime(new Date());
-        return spanMapper.updateById(span) > 0;
+        boolean updated = spanMapper.updateById(span) > 0;
+        if (updated) {
+            invalidateMask(span.getDocId());
+        }
+        return updated;
     }
 
     @Override
@@ -295,6 +397,7 @@ public class ReviewDocServiceImpl implements IReviewDocService {
         span.setCreateTime(now);
         span.setUpdateTime(now);
         spanMapper.insert(span);
+        invalidateMask(span.getDocId());
         return spanMapper.selectById(span.getId());
     }
 
@@ -308,6 +411,7 @@ public class ReviewDocServiceImpl implements IReviewDocService {
         db.setSpanType(span.getSpanType());
         db.setUpdateTime(new Date());
         spanMapper.updateById(db);
+        invalidateMask(db.getDocId());
         return spanMapper.selectById(db.getId());
     }
 
@@ -320,26 +424,181 @@ public class ReviewDocServiceImpl implements IReviewDocService {
         if (pendingCount != null && pendingCount > 0) {
             throw new ServiceException("还有 " + pendingCount + " 条待确认记录未处理");
         }
+        if ("2".equals(doc.getStatus()) && PROCESS_MASK_DONE.equals(doc.getProcessStatus())) {
+            throw new ServiceException("该文档已完成审核和脱敏，如需重新生成脱敏文件请点击“重新脱敏”");
+        }
+        long start = System.currentTimeMillis();
+        log.info("开始审核完成处理 docId={} docName={} 流程状态={}",
+            docId, doc.getDocName(), doc.getProcessStatus());
+        // 审核结果先落库：后面的脱敏失败不回滚审核状态，只写失败原因，等待重新脱敏
+        Date now = new Date();
+        docMapper.update(null, Wrappers.<ReviewDoc>lambdaUpdate()
+            .eq(ReviewDoc::getId, docId)
+            .set(ReviewDoc::getStatus, "2")
+            .set(ReviewDoc::getProcessStatus, PROCESS_WAIT_MASK)
+            .set(ReviewDoc::getProcessError, null)
+            .set(ReviewDoc::getUpdateTime, now));
         doc.setStatus("2");
-        doc.setUpdateTime(new Date());
-        return docMapper.updateById(doc) > 0;
+        doc.setProcessStatus(PROCESS_WAIT_MASK);
+        doc.setProcessError(null);
+        doc.setUpdateTime(now);
+        log.info("审核完成状态已保存 docId={} status=2 processStatus={} cost={}ms",
+            docId, PROCESS_WAIT_MASK, System.currentTimeMillis() - start);
+        // 审核完成即自动脱敏：用类型化掩码替换已确认的敏感词，生成往下走的脱敏文件
+        autoMask(doc);
+        return true;
     }
 
     @Override
     public String applyMask(Long docId) {
         ReviewDoc doc = getDocOrThrow(docId);
-        checkFileExists(doc.getFilePath());
-        List<ReviewSpan> confirmed = spanMapper.selectList(Wrappers.<ReviewSpan>lambdaQuery()
-            .eq(ReviewSpan::getDocId, docId)
-            .eq(ReviewSpan::getStatus, "1"));
-        if (confirmed.isEmpty()) {
-            throw new ServiceException("没有已确认的敏感记录");
+        long start = System.currentTimeMillis();
+        log.info("开始重新脱敏 docId={} docName={} 源文件={}", docId, doc.getDocName(), doc.getExtractFilePath());
+        int replaced = maskExtract(doc);
+        log.info("重新脱敏完成 docId={} 替换处数={} maskFileId={} ossUrl={} cost={}ms",
+            docId, replaced, doc.getMaskFileId(), doc.getMaskFilePath(),
+            System.currentTimeMillis() - start);
+        return doc.getMaskFilePath();
+    }
+
+    /**
+     * 审核完成后的自动脱敏；脱敏失败只提示，不回滚审核状态，可从列表“重新脱敏”。
+     */
+    private void autoMask(ReviewDoc doc) {
+        long start = System.currentTimeMillis();
+        try {
+            int replaced = maskExtract(doc);
+            log.info("审核完成自动脱敏成功 docId={} 替换处数={} maskFileId={} ossUrl={} cost={}ms",
+                doc.getId(), replaced, doc.getMaskFileId(), doc.getMaskFilePath(),
+                System.currentTimeMillis() - start);
+        } catch (ServiceException e) {
+            log.warn("审核完成自动脱敏未成功 docId={} 流程状态={} reason={} cost={}ms",
+                doc.getId(), PROCESS_WAIT_MASK, e.getMessage(), System.currentTimeMillis() - start);
+            throw new ServiceException("审核已完成，但脱敏文件生成失败：" + e.getMessage()
+                + "；可在列表中点击“重新脱敏”重试");
         }
-        String outputPath = ReviewMaskApplier.apply(doc, confirmed);
-        doc.setStatus("1");
-        doc.setUpdateTime(new Date());
-        docMapper.updateById(doc);
-        return outputPath;
+    }
+
+    /**
+     * 对截取文件执行敏感词替换，结果写本地工作目录，只记路径不上传 OSS。
+     * 失败时写 process_error 并把流程状态置为待脱敏，允许重试。
+     *
+     * @return 实际替换处数
+     */
+    private int maskExtract(ReviewDoc doc) {
+        try {
+            if (StringUtils.isBlank(doc.getExtractFilePath()) || !new File(doc.getExtractFilePath()).exists()) {
+                throw new ServiceException("截取文件不存在，请重新执行章节拆分");
+            }
+            List<ReviewSpan> confirmed = spanMapper.selectList(Wrappers.<ReviewSpan>lambdaQuery()
+                .eq(ReviewSpan::getDocId, doc.getId())
+                .eq(ReviewSpan::getStatus, "1"));
+            File output = new File(workDirOf(doc.getId()), MASK_FILE_NAME);
+            int replaced = ReviewMaskApplier.apply(doc.getExtractFilePath(), confirmed, output.getAbsolutePath());
+            if (replaced == 0) {
+                // 全部忽略、或已确认的词在正文里找不到时，脱敏文件与截取文件内容一致
+                log.warn("没有可替换的敏感词，脱敏文件与截取文件内容一致 docId={} 已确认词数={}",
+                    doc.getId(), confirmed.size());
+            }
+            // 脱敏文件是流程的最终产物：按约定上传 OSS 并写 sys_file，字段里存 OSS 地址
+            SysFile maskFile = uploadMaskedFile(output, buildDownloadFileName(doc, "脱敏"), doc);
+            Date now = new Date();
+            docMapper.update(null, Wrappers.<ReviewDoc>lambdaUpdate()
+                .eq(ReviewDoc::getId, doc.getId())
+                .set(ReviewDoc::getMaskFileId, maskFile.getId())
+                .set(ReviewDoc::getMaskFilePath, maskFile.getOssUrl())
+                .set(ReviewDoc::getProcessStatus, PROCESS_MASK_DONE)
+                .set(ReviewDoc::getProcessError, null)
+                .set(ReviewDoc::getUpdateTime, now));
+            doc.setMaskFileId(maskFile.getId());
+            doc.setMaskFilePath(maskFile.getOssUrl());
+            doc.setProcessStatus(PROCESS_MASK_DONE);
+            doc.setProcessError(null);
+            doc.setUpdateTime(now);
+            return replaced;
+        } catch (ServiceException e) {
+            markMaskFailed(doc, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("脱敏替换异常 docId={} docName={}", doc.getId(), doc.getDocName(), e);
+            markMaskFailed(doc, e.getMessage());
+            throw new ServiceException("脱敏处理失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 上传脱敏文件到 OSS 并写 sys_file 记录；新文件传成功后再删上一版，避免上传失败时旧文件也没了。
+     */
+    private SysFile uploadMaskedFile(File masked, String fileName, ReviewDoc doc) {
+        long start = System.currentTimeMillis();
+        String batchId = BATCH_MASK_PREFIX + doc.getId();
+        log.info("开始上传脱敏文件 docId={} fileName={} size={}B bizType={}",
+            doc.getId(), fileName, masked.length(), BIZ_TYPE_MASK);
+        SysFile sysFile = sysFileService.upload(new LocalFileMultipartFile(masked, fileName), BIZ_TYPE_MASK, batchId);
+        sysFileService.updateBizId(batchId, doc.getId());
+        log.info("脱敏文件上传完成 docId={} maskFileId={} ossUrl={} size={}B cost={}ms",
+            doc.getId(), sysFile.getId(), sysFile.getOssUrl(), masked.length(),
+            System.currentTimeMillis() - start);
+        deleteMaskedFile(doc.getId(), doc.getMaskFileId());
+        return sysFile;
+    }
+
+    /**
+     * 删除上一版脱敏文件（OSS 对象 + sys_file 记录），删除失败不影响主流程
+     */
+    private void deleteMaskedFile(Long docId, Long maskFileId) {
+        if (maskFileId == null) {
+            return;
+        }
+        try {
+            sysFileService.deleteById(maskFileId);
+            log.info("已删除上一版脱敏文件 docId={} maskFileId={}", docId, maskFileId);
+        } catch (Exception e) {
+            log.warn("删除上一版脱敏文件失败 docId={} maskFileId={} reason={}",
+                docId, maskFileId, e.getMessage());
+        }
+    }
+
+    private void markMaskFailed(ReviewDoc doc, String message) {
+        String error = StringUtils.substring(message, 0, 500);
+        docMapper.update(null, Wrappers.<ReviewDoc>lambdaUpdate()
+            .eq(ReviewDoc::getId, doc.getId())
+            .set(ReviewDoc::getProcessStatus, PROCESS_WAIT_MASK)
+            .set(ReviewDoc::getProcessError, error)
+            .set(ReviewDoc::getRetryCount, (doc.getRetryCount() == null ? 0 : doc.getRetryCount()) + 1)
+            .set(ReviewDoc::getUpdateTime, new Date()));
+        doc.setProcessStatus(PROCESS_WAIT_MASK);
+        doc.setProcessError(error);
+    }
+
+    /**
+     * 审核完成之后又改动了敏感词，之前生成的脱敏文件就过期了：
+     * 清掉路径回到“待脱敏”，可以在列表点击“重新脱敏”按最新词表重新生成。
+     */
+    private void invalidateMask(Long docId) {
+        ReviewDoc doc = docMapper.selectById(docId);
+        if (doc == null || !"2".equals(doc.getStatus()) || StringUtils.isBlank(doc.getMaskFilePath())) {
+            return;
+        }
+        log.info("审核完成后敏感词发生变化，脱敏文件失效 docId={} maskFileId={} ossUrl={}",
+            docId, doc.getMaskFileId(), doc.getMaskFilePath());
+        deleteMaskedFile(docId, doc.getMaskFileId());
+        docMapper.update(null, Wrappers.<ReviewDoc>lambdaUpdate()
+            .eq(ReviewDoc::getId, docId)
+            .set(ReviewDoc::getMaskFileId, null)
+            .set(ReviewDoc::getMaskFilePath, null)
+            .set(ReviewDoc::getProcessStatus, PROCESS_WAIT_MASK)
+            .set(ReviewDoc::getProcessError, null)
+            .set(ReviewDoc::getUpdateTime, new Date()));
+    }
+
+    /**
+     * 下载流来源（本地文件或 OSS），允许抛受检异常
+     */
+    @FunctionalInterface
+    private interface StreamSupplier {
+
+        InputStream get() throws Exception;
     }
 
     private ReviewDoc getDocOrThrow(Long docId) {
@@ -447,13 +706,13 @@ public class ReviewDocServiceImpl implements IReviewDocService {
         }
     }
 
-    private String buildExtractFileName(ReviewDoc doc) {
+    private String buildDownloadFileName(ReviewDoc doc, String suffix) {
         String name = StringUtils.isBlank(doc.getDocName()) ? "投标文件" : doc.getDocName();
         int dot = name.lastIndexOf('.');
         if (dot > 0) {
             name = name.substring(0, dot);
         }
-        return name + "-方案章节.docx";
+        return name + "-" + suffix + ".docx";
     }
 
     private List<String> keywordList() {

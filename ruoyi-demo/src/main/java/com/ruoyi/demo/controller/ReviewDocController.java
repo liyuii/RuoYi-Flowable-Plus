@@ -6,6 +6,7 @@ import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.demo.domain.ReviewDoc;
 import com.ruoyi.demo.domain.ReviewSpan;
 import com.ruoyi.demo.domain.vo.ReviewContentVO;
+import com.ruoyi.demo.domain.vo.ReviewRecognizeVO;
 import com.ruoyi.demo.service.IReviewDocService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -73,6 +74,22 @@ public class ReviewDocController {
         reviewDocService.downloadExtract(docId, response);
     }
 
+    /**
+     * 下载脱敏文件（审核完成时自动生成）
+     */
+    @GetMapping("/doc/{docId}/mask/download")
+    public void downloadMask(@PathVariable Long docId, HttpServletResponse response) {
+        reviewDocService.downloadMask(docId, response);
+    }
+
+    /**
+     * 脱敏识别：对截取文件执行敏感词识别（正则 + AI），候选词进入人工审核
+     */
+    @PostMapping("/doc/{docId}/recognize")
+    public R<ReviewRecognizeVO> recognize(@PathVariable Long docId) {
+        return R.ok(reviewDocService.recognize(docId));
+    }
+
     @GetMapping("/doc/{docId}/content")
     public R<ReviewContentVO> content(@PathVariable Long docId) {
         return R.ok(reviewDocService.content(docId));
@@ -100,12 +117,15 @@ public class ReviewDocController {
 
     @PostMapping("/doc/{docId}/apply")
     public R<String> apply(@PathVariable Long docId) {
-        return R.ok("已生成脱敏文件: " + reviewDocService.applyMask(docId));
+        return R.ok("脱敏完成", reviewDocService.applyMask(docId));
     }
 
+    /**
+     * 审核完成：校验没有待确认记录后自动脱敏，生成脱敏文件
+     */
     @PostMapping("/doc/{docId}/complete")
     public R<Void> complete(@PathVariable Long docId) {
-        return toR(reviewDocService.completeReview(docId));
+        return reviewDocService.completeReview(docId) ? R.ok("审核完成，已生成脱敏文件") : R.fail("操作失败");
     }
 
     private R<Void> toR(Boolean flag) {

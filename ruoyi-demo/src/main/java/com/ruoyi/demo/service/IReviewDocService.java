@@ -5,6 +5,7 @@ import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.demo.domain.ReviewDoc;
 import com.ruoyi.demo.domain.ReviewSpan;
 import com.ruoyi.demo.domain.vo.ReviewContentVO;
+import com.ruoyi.demo.domain.vo.ReviewRecognizeVO;
 
 import javax.servlet.http.HttpServletResponse;
 
@@ -48,6 +49,16 @@ public interface IReviewDocService {
      */
     void downloadExtract(Long docId, HttpServletResponse response);
 
+    /**
+     * 下载脱敏文件
+     */
+    void downloadMask(Long docId, HttpServletResponse response);
+
+    /**
+     * 脱敏识别：对截取文件执行敏感词识别，候选词写入 review_span 待人工确认
+     */
+    ReviewRecognizeVO recognize(Long docId);
+
     ReviewContentVO content(Long docId);
 
     Boolean confirmSpan(Long id);
@@ -59,10 +70,13 @@ public interface IReviewDocService {
     ReviewSpan updateSpan(ReviewSpan span);
 
     /**
-     * 审核完成：校验没有待确认记录后，把文档状态改为 2
+     * 审核完成：校验没有待确认记录后把文档状态改为 2，并自动执行脱敏（生成脱敏文件）
      */
     Boolean completeReview(Long docId);
 
+    /**
+     * 重新脱敏：按最新词表重新生成脱敏文件，审核完成时自动失败后用本接口重试
+     */
     String applyMask(Long docId);
 
 }

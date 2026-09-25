@@ -60,12 +60,23 @@ public class ReviewDoc {
     private String extractFilePath;
 
     /**
+     * 脱敏后文件在 OSS 的地址，审核完成时自动生成（本地工作目录另留 masked.docx 副本）
+     */
+    private String maskFilePath;
+
+    /**
+     * 脱敏文件在 sys_file 表中的 id，用于重新脱敏时删除上一版 OSS 对象
+     */
+    private Long maskFileId;
+
+    /**
      * 本次提取到的章节标题，多个用分号分隔
      */
     private String extractChapters;
 
     /**
-     * 流程状态：WAIT_SPLIT 待拆分，SPLIT_DONE 已拆分
+     * 流程状态：WAIT_SPLIT 待拆分，SPLIT_DONE 已拆分，
+     * WAIT_REVIEW 待审核，WAIT_MASK 待脱敏（审核完成但脱敏失败），MASK_DONE 脱敏完成
      */
     private String processStatus;
 

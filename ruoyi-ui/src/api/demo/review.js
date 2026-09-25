@@ -118,3 +118,32 @@ export function delReviewFile(fileId) {
     method: 'delete'
   })
 }
+
+// 脱敏识别：对截取文件执行敏感词识别（正则 + AI），候选词进入人工审核
+export function recognizeReviewDoc(docId) {
+  return request({
+    url: '/demo/review/doc/' + docId + '/recognize',
+    method: 'post',
+    timeout: 180000,
+    headers: { repeatSubmit: false }
+  })
+}
+
+// 重新脱敏：按最新词表重新生成脱敏文件（审核完成时自动脱敏失败后重试）
+export function applyReviewMask(docId) {
+  return request({
+    url: '/demo/review/doc/' + docId + '/apply',
+    method: 'post',
+    timeout: 180000,
+    headers: { repeatSubmit: false }
+  })
+}
+
+// 下载脱敏文件（审核完成时自动生成在本地工作目录）
+export function downloadReviewMask(docId) {
+  return request({
+    url: '/demo/review/doc/' + docId + '/mask/download',
+    method: 'get',
+    responseType: 'blob'
+  })
+}
