@@ -117,7 +117,12 @@
               :loading="syncingId === scope.row.id"
               @click="handleSyncNow(scope.row)"
             >立即同步</el-button>
-            <el-button type="text" icon="el-icon-view" size="mini" @click="openReview(scope.row)">审核</el-button>
+            <el-button
+              type="text"
+              icon="el-icon-view"
+              size="mini"
+              @click="openReview(scope.row)"
+            >审核</el-button>
             <el-button
               v-if="scope.row.extractFilePath"
               type="text"

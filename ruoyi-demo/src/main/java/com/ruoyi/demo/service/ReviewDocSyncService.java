@@ -6,6 +6,7 @@ import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.demo.domain.ReviewDoc;
 import com.ruoyi.demo.mapper.ReviewDocMapper;
+import com.ruoyi.doc.constant.DocSourceType;
 import com.ruoyi.doc.domain.dto.DocPageDTO;
 import com.ruoyi.doc.domain.dto.DocSyncDTO;
 import com.ruoyi.doc.service.IDocSyncService;
@@ -30,11 +31,6 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ReviewDocSyncService {
-
-    /**
-     * 来源业务类型
-     */
-    public static final String SOURCE_TYPE_REVIEW_MASK = "REVIEW_MASK";
 
     private static final String STATUS_AUDITED = "2";
 
@@ -121,7 +117,7 @@ public class ReviewDocSyncService {
             }
             SysFile maskFile = doc.getMaskFileId() == null ? null : sysFileService.getById(doc.getMaskFileId());
             DocSyncDTO dto = new DocSyncDTO();
-            dto.setSourceType(SOURCE_TYPE_REVIEW_MASK);
+            dto.setSourceType(DocSourceType.REVIEW_MASK);
             dto.setSourceBizId(doc.getId());
             dto.setDocName(buildDocName(doc.getDocName()));
             dto.setProjectName(doc.getProjectName());

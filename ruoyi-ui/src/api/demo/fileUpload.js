@@ -74,3 +74,25 @@ export function deleteUploadFile(id) {
     method: 'delete'
   })
 }
+
+// 编辑文件信息（只有审核不通过的文件可以编辑）
+export function editUploadFile(data) {
+  return request({
+    url: '/demo/upload/edit',
+    method: 'put',
+    data: data,
+    headers: { repeatSubmit: false }
+  })
+}
+
+// 审核：通过则发布到投标方案列表，不通过必须填原因
+export function auditUploadFile(data) {
+  return request({
+    url: '/demo/upload/audit',
+    method: 'put',
+    data: data,
+    // 审核通过时会同步把文件转成页面图片并发布到文档库，耗时会比普通接口长
+    timeout: 300000,
+    headers: { repeatSubmit: false }
+  })
+}

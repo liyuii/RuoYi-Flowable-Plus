@@ -95,6 +95,24 @@ public class DocSyncServiceImpl implements IDocSyncService {
         }
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public void removeBySource(String sourceType, Long sourceBizId) {
+        if (StringUtils.isBlank(sourceType) || sourceBizId == null) {
+            return;
+        }
+        DocInfo info = docInfoMapper.selectOne(Wrappers.<DocInfo>lambdaQuery()
+            .eq(DocInfo::getSourceType, sourceType)
+            .eq(DocInfo::getSourceBizId, sourceBizId));
+        if (info == null) {
+            return;
+        }
+        docInfoMapper.deleteById(info.getId());
+        docFileMapper.delete(Wrappers.<DocFile>lambdaQuery().eq(DocFile::getDocId, info.getId()));
+        log.info("文档库记录已删除 docId={} sourceType={} sourceBizId={}",
+            info.getId(), sourceType, sourceBizId);
+    }
+
     private void copy(DocSyncDTO dto, DocInfo info) {
         info.setDocName(dto.getDocName());
         info.setProjectName(dto.getProjectName());

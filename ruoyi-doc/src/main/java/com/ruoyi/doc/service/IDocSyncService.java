@@ -14,4 +14,9 @@ public interface IDocSyncService {
      */
     Long sync(DocSyncDTO dto);
 
+    /**
+     * 按来源删除文档库记录（源系统删除时调用；只删文档库的表记录，不动源侧 OSS 对象）
+     */
+    void removeBySource(String sourceType, Long sourceBizId);
+
 }

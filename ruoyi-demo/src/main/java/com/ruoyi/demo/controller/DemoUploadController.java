@@ -1,10 +1,13 @@
 package com.ruoyi.demo.controller;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.ruoyi.common.core.domain.PageQuery;
 import com.ruoyi.common.core.domain.R;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.demo.domain.DemoUploadFile;
+import com.ruoyi.demo.domain.bo.DemoUploadAuditBo;
 import com.ruoyi.demo.domain.bo.DemoUploadCompleteBo;
+import com.ruoyi.demo.domain.bo.DemoUploadEditBo;
 import com.ruoyi.demo.domain.bo.DemoUploadInitBo;
 import com.ruoyi.demo.domain.vo.DemoUploadSessionVo;
 import com.ruoyi.demo.service.IDemoUploadService;
@@ -15,6 +18,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -66,8 +70,8 @@ public class DemoUploadController {
     }
 
     @GetMapping("/list")
-    public TableDataInfo<DemoUploadFile> list(PageQuery pageQuery) {
-        return demoUploadService.pageUploadFiles(pageQuery);
+    public TableDataInfo<DemoUploadFile> list(DemoUploadFile query, PageQuery pageQuery) {
+        return demoUploadService.pageUploadFiles(query, pageQuery);
     }
 
     @GetMapping("/download/{id}")
@@ -78,6 +82,25 @@ public class DemoUploadController {
     @DeleteMapping("/file/{id}")
     public R<Void> delete(@PathVariable Long id) {
         demoUploadService.deleteFile(id);
+        return R.ok();
+    }
+
+    /**
+     * 编辑文件信息（只有审核不通过的文件可以编辑），保存后重新进入待审核
+     */
+    @PutMapping("/edit")
+    public R<Void> edit(@Valid @RequestBody DemoUploadEditBo bo) {
+        demoUploadService.editFile(bo);
+        return R.ok();
+    }
+
+    /**
+     * 审核：通过则发布到方案库，不通过必须填原因
+     */
+    @SaCheckPermission("demo:upload:audit")
+    @PutMapping("/audit")
+    public R<Void> audit(@Valid @RequestBody DemoUploadAuditBo bo) {
+        demoUploadService.auditFile(bo);
         return R.ok();
     }
 
