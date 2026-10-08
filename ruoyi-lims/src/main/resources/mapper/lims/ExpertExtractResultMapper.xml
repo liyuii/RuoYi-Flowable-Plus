@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.lims.mapper.ExpertExtractResultMapper">
+
+    <resultMap id="ResultVoMap" type="com.ruoyi.lims.domain.vo.ExpertExtractResultVo">
+        <id property="id" column="id"/>
+        <result property="extractId" column="extract_id"/>
+        <result property="scopeId" column="scope_id"/>
+        <result property="expertId" column="expert_id"/>
+        <result property="evaluateDate" column="evaluate_date"/>
+        <result property="status" column="status"/>
+        <result property="reason" column="reason"/>
+        <result property="roundNo" column="round_no"/>
+        <result property="extractType" column="extract_type"/>
+        <result property="extractBy" column="extract_by"/>
+        <result property="extractTime" column="extract_time"/>
+        <result property="statusBy" column="status_by"/>
+        <result property="statusTime" column="status_time"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="expertName" column="expert_name"/>
+        <result property="phone" column="phone"/>
+        <result property="companyName" column="company_name"/>
+        <result property="regionCode" column="region_code"/>
+        <result property="majorCode" column="major_code"/>
+        <result property="majorName" column="major_name"/>
+    </resultMap>
+
+    <!-- 按申请查结果，带出专家信息、所属范围和专业名称 -->
+    <select id="selectResultListByExtractId" resultMap="ResultVoMap">
+        SELECT r.id,
+               r.extract_id,
+               r.scope_id,
+               r.expert_id,
+               r.evaluate_date,
+               r.status,
+               r.reason,
+               r.round_no,
+               r.extract_type,
+               r.extract_by,
+               r.extract_time,
+               r.status_by,
+               r.status_time,
+               r.create_time,
+               r.update_time,
+               e.expert_name,
+               e.phone,
+               e.company_name,
+               e.region_code,
+               s.major_code,
+               d.dict_label AS major_name
+        FROM expert_extract_result r
+                 LEFT JOIN expert_info e ON e.id = r.expert_id
+                 LEFT JOIN expert_extract_scope s ON s.id = r.scope_id
+                 LEFT JOIN sys_dict_data d ON d.dict_type = 'expert_major' AND d.dict_value = s.major_code
+        WHERE r.extract_id = #{extractId}
+        ORDER BY s.order_num, r.round_no, r.id
+    </select>
+
+</mapper>

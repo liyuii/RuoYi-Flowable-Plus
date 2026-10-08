@@ -31,15 +31,16 @@
       </el-form-item>
     </el-form>
 
-    <el-row :gutter="10" class="mb8">
+    <!-- <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
         <el-button type="success" plain icon="el-icon-refresh" size="mini" @click="getList">刷新</el-button>
       </el-col>
       <right-toolbar :show-search.sync="showSearch" @queryTable="getList" />
-    </el-row>
+    </el-row> -->
 
     <el-table v-loading="loading" :data="docList">
-      <el-table-column label="首页" align="center" width="90">
+      <el-table-column label="文档名称" align="left" prop="docName" min-width="200" show-overflow-tooltip />
+      <el-table-column label="封面" align="center" width="90">
         <template slot-scope="scope">
           <el-image
             v-if="scope.row.coverUrl"
@@ -51,7 +52,6 @@
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column label="文档名称" align="left" prop="docName" min-width="200" show-overflow-tooltip />
       <el-table-column label="项目名称" align="left" prop="projectName" min-width="180" show-overflow-tooltip />
       <el-table-column label="所在省份" align="center" width="130">
         <template slot-scope="scope">{{ provinceName(scope.row.provinceCode) }}</template>
@@ -59,7 +59,7 @@
       <el-table-column label="金额（元）" align="right" width="140">
         <template slot-scope="scope">{{ formatAmount(scope.row.amount) }}</template>
       </el-table-column>
-      <el-table-column label="页数" align="center" prop="pageCount" width="80" />
+      <!-- <el-table-column label="页数" align="center" prop="pageCount" width="80" /> -->
       <el-table-column label="入库时间" align="center" prop="createTime" width="170" />
       <el-table-column label="操作" align="center" width="220">
         <template slot-scope="scope">

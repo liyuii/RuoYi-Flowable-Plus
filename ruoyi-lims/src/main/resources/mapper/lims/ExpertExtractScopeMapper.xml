@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.lims.mapper.ExpertExtractScopeMapper">
+
+    <!-- 按申请查范围，带出专业名称，按抽取顺序排 -->
+    <select id="selectScopeListByExtractId" resultType="com.ruoyi.lims.domain.ExpertExtractScope">
+        SELECT s.id,
+               s.extract_id,
+               s.major_code,
+               s.need_num,
+               s.order_num,
+               d.dict_label AS major_name
+        FROM expert_extract_scope s
+                 LEFT JOIN sys_dict_data d ON d.dict_type = 'expert_major' AND d.dict_value = s.major_code
+        WHERE s.extract_id = #{extractId}
+        ORDER BY s.order_num, s.id
+    </select>
+
+</mapper>

@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.lims.mapper.ExpertInfoMapper">
+
+    <sql id="expertColumns">
+        e.id, e.expert_name, e.id_card, e.phone, e.company_name, e.region_code,
+        e.status, e.remark, e.del_flag, e.create_by, e.create_time, e.update_by, e.update_time
+    </sql>
+
+    <!-- 专家库分页列表，专业名称从字典里取 -->
+    <select id="selectExpertPage" resultType="com.ruoyi.lims.domain.ExpertInfo">
+        SELECT
+        <include refid="expertColumns"/>,
+        (SELECT GROUP_CONCAT(d.dict_label ORDER BY d.dict_sort SEPARATOR ',')
+        FROM expert_major em
+        LEFT JOIN sys_dict_data d ON d.dict_type = 'expert_major' AND d.dict_value = em.major_code
+        WHERE em.expert_id = e.id) AS major_names
+        FROM expert_info e
+        WHERE e.del_flag = '0'
+        <if test="query.expertName != null and query.expertName != ''">
+            AND e.expert_name LIKE CONCAT('%', #{query.expertName}, '%')
+        </if>
+        <if test="query.companyName != null and query.companyName != ''">
+            AND e.company_name LIKE CONCAT('%', #{query.companyName}, '%')
+        </if>
+        <if test="query.regionCode != null and query.regionCode != ''">
+            AND e.region_code = #{query.regionCode}
+        </if>
+        <if test="query.status != null and query.status != ''">
+            AND e.status = #{query.status}
+        </if>
+        <if test="query.majorCode != null and query.majorCode != ''">
+            AND EXISTS (SELECT 1 FROM expert_major em2
+            WHERE em2.expert_id = e.id AND em2.major_code = #{query.majorCode})
+        </if>
+        ORDER BY e.id DESC
+    </select>
+
+    <!--
+      查候选专家 ID。
+      排除规则：
+        1) 专家停用或已删除
+        2) 评标当天已经有 WAIT_CONFIRM / JOIN 的记录（别人已占用）
+        3) 命中专家回避名单（姓名和身份证号都对上）
+        4) 命中单位回避名单（单位名称对上）
+        5) 在传进来的排除集合里
+    -->
+    <select id="selectCandidateIds" resultType="java.lang.Long">
+        SELECT e.id
+        FROM expert_major em
+        INNER JOIN expert_info e ON e.id = em.expert_id
+        WHERE e.del_flag = '0'
+        AND e.status = '0'
+        AND em.major_code = #{majorCode}
+        AND e.region_code = #{regionCode}
+        AND NOT EXISTS (
+        SELECT 1 FROM expert_extract_result r
+        WHERE r.expert_id = e.id
+        AND r.evaluate_date = #{evaluateDate}
+        AND r.status IN ('WAIT_CONFIRM', 'JOIN')
+        )
+        AND NOT EXISTS (
+        SELECT 1 FROM expert_extract_avoid a
+        WHERE a.extract_id = #{extractId}
+        AND a.avoid_type = 'EXPERT'
+        AND a.expert_name = e.expert_name
+        AND a.id_card = e.id_card
+        )
+        AND NOT EXISTS (
+        SELECT 1 FROM expert_extract_avoid a
+        WHERE a.extract_id = #{extractId}
+        AND a.avoid_type = 'COMPANY'
+        AND a.company_name = e.company_name
+        )
+        <if test="excludeIds != null and excludeIds.size() > 0">
+            AND e.id NOT IN
+            <foreach collection="excludeIds" item="excludeId" open="(" separator="," close=")">
+                #{excludeId}
+            </foreach>
+        </if>
+    </select>
+
+    <!--
+      按专业分组统计可抽取人数，口径和查候选一致：
+      地区匹配、状态正常、评标当天没有有效占用、不在表单当前填的回避名单里。
+      注意单位名称可能是空的，用 NOT IN 之前要先放行 NULL，否则会被一起过滤掉。
+    -->
+    <select id="selectMajorCountList" resultType="com.ruoyi.lims.domain.vo.ExpertMajorCountVo">
+        SELECT em.major_code AS major_code,
+               COUNT(DISTINCT e.id) AS available_num
+        FROM expert_major em
+        INNER JOIN expert_info e ON e.id = em.expert_id
+        WHERE e.del_flag = '0'
+        AND e.status = '0'
+        AND e.region_code = #{regionCode}
+        AND NOT EXISTS (
+        SELECT 1 FROM expert_extract_result r
+        WHERE r.expert_id = e.id
+        AND r.evaluate_date = #{evaluateDate}
+        AND r.status IN ('WAIT_CONFIRM', 'JOIN')
+        )
+        <if test="expertKeys != null and expertKeys.size() > 0">
+            AND CONCAT(e.expert_name, '|', e.id_card) NOT IN
+            <foreach collection="expertKeys" item="expertKey" open="(" separator="," close=")">
+                #{expertKey}
+            </foreach>
+        </if>
+        <if test="companies != null and companies.size() > 0">
+            AND (e.company_name IS NULL OR e.company_name NOT IN
+            <foreach collection="companies" item="company" open="(" separator="," close=")">
+                #{company}
+            </foreach>
+            )
+        </if>
+        GROUP BY em.major_code
+    </select>
+
+</mapper>

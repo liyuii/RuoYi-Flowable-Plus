@@ -113,6 +113,18 @@ spring:
     timeout: 10s
     # 是否开启ssl
     ssl: false
+  rabbitmq:
+    host: 127.0.0.1
+    port: 5672
+    username: admin
+    password: admin
+    listener:
+      simple:
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 3000
+        acknowledge-mode: manual
 
 redisson:
   # redis key前缀

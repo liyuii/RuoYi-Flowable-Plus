@@ -52,7 +52,7 @@ spring:
           driverClassName: com.mysql.cj.jdbc.Driver
           # jdbc 所有参数配置参考 https://lionli.blog.csdn.net/article/details/122018562
           # rewriteBatchedStatements=true 批处理优化 大幅提升批量插入更新删除性能(对数据库有性能损耗 使用批量操作应考虑性能问题)
-          url: jdbc:mysql://127.0.0.1:3306/ruoyi_flowable?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true
+          url: jdbc:mysql://39.106.57.38:3306/ruoyi_flowable?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true
           username: root
           password: Liyuii2023!
         # 从库数据源
@@ -60,7 +60,7 @@ spring:
           lazy: true
           type: ${spring.datasource.type}
           driverClassName: com.mysql.cj.jdbc.Driver
-          url: jdbc:mysql://127.0.0.1:3306/ruoyi_flowable?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true
+          url: jdbc:mysql://39.106.57.38:3306/ruoyi_flowable?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true
           username:
           password:
 #        oracle:
@@ -105,7 +105,7 @@ spring:
 spring:
   redis:
     # 地址
-    host: localhost
+    host: 39.106.57.38
     # 端口，默认为6379
     port: 6379
     # 数据库索引
@@ -116,6 +116,20 @@ spring:
     timeout: 10s
     # 是否开启ssl
     ssl: false
+    password: Rediss@pwd123
+  #消息队列
+  rabbitmq:
+    host: 39.106.57.38
+    port: 5672
+    username: admin
+    password: rabbitmqq@guest105
+    listener:
+      simple:
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 3000
+        acknowledge-mode: manual
 
 redisson:
   # redis key前缀
